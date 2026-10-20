@@ -46,6 +46,36 @@ export async function streamToDisk(file: File, rel: string): Promise<void> {
   await pipeline(source, createWriteStream(abs));
 }
 
+export type VideoUpload = { file: File; durationS: number; storedPath: string };
+
+/** Validates the multipart video field and the browser-measured duration; picks the stored name. */
+export function readVideoField(
+  fileField: FormDataEntryValue | null,
+  durationField: FormDataEntryValue | null,
+): VideoUpload | { error: string } {
+  if (!(fileField instanceof File) || fileField.size === 0) return { error: "Choose a video file" };
+  const ext = VIDEO_TYPES[fileField.type];
+  if (!ext) return { error: "Unsupported video type: upload an H.264 MP4 (WebM and MOV are accepted too)" };
+  if (fileField.size > MAX_VIDEO_BYTES) return { error: "The file is larger than 300 MB" };
+  const durationS = Number(durationField);
+  if (!Number.isFinite(durationS) || durationS < 1 || durationS > MAX_DURATION_S) {
+    return { error: "Could not read the video length (1 s to 10 min); the file may not be playable in this browser" };
+  }
+  return {
+    file: fileField,
+    durationS: Math.round(durationS * 1000) / 1000,
+    storedPath: newStoredName("videos", ext),
+  };
+}
+
+export function readImageField(fileField: FormDataEntryValue | null): { file: File; storedPath: string } | { error: string } {
+  if (!(fileField instanceof File) || fileField.size === 0) return { error: "Choose a reference image" };
+  const ext = IMAGE_TYPES[fileField.type];
+  if (!ext) return { error: "Unsupported image type: use PNG, JPEG or WebP" };
+  if (fileField.size > MAX_IMAGE_BYTES) return { error: "The image is larger than 10 MB" };
+  return { file: fileField, storedPath: newStoredName("cast", ext) };
+}
+
 export async function removeStored(rel: string): Promise<void> {
   try {
     await unlink(resolveDataPath(rel));

@@ -22,3 +22,4 @@ export function getDb(): Db {
 }
 
 export { schema };
+export type { CastMember, Episode, NewNote, Note, Series, Version } from "./schema";
