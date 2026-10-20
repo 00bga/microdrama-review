@@ -12,7 +12,8 @@ import type { TokenUsage } from "@/lib/pricing";
 export const DEFAULT_MODEL = "gemini-3.8-flash";
 
 export const TIMEOUTS = {
-  uploadMs: 2 * 60_000,
+  /** client-wide cap, which is what the upload request gets (a per-upload option breaks the SDK's upload URL) */
+  requestMs: 4 * 60_000,
   processingMs: 5 * 60_000,
   generateMs: 3 * 60_000,
   pollMs: 3_000,
@@ -31,7 +32,10 @@ export function getApiKey(): string | null {
 export function createClient(): GoogleGenAI {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("No API key: set GOOGLE_API_KEY in .env and restart the server");
-  return new GoogleGenAI({ apiKey, httpOptions: { retryOptions: { attempts: 1 } } });
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: { timeout: TIMEOUTS.requestMs, retryOptions: { attempts: 1 } },
+  });
 }
 
 /** The Files API lists video/mov rather than the browser's video/quicktime. */
@@ -81,10 +85,8 @@ export async function uploadVideo(
 ): Promise<UploadedVideo> {
   onStage("uploading");
   const geminiMime = geminiMimeType(mimeType);
-  let file = await ai.files.upload({
-    file: absPath,
-    config: { mimeType: geminiMime, displayName, httpOptions: { timeout: TIMEOUTS.uploadMs } },
-  });
+  // No per-call httpOptions here: the SDK (2.30) builds the upload URL from them and 404s.
+  let file = await ai.files.upload({ file: absPath, config: { mimeType: geminiMime, displayName } });
   const name = file.name;
   if (!name) throw new Error("Gemini accepted the upload but returned no file name");
 
@@ -98,7 +100,7 @@ export async function uploadVideo(
     file = await ai.files.get({ name });
   }
   if (file.state === FileState.FAILED) {
-    const detail = file.error?.message ? `: ${file.error.message}` : "";
+    const detail = file.error?.message ? ` (${file.error.message.replace(/\.+$/, "")})` : "";
     throw new Error(`Gemini could not process this video${detail}. H.264 MP4 works best`);
   }
   return toUploaded(file, geminiMime);
@@ -146,7 +148,7 @@ export async function generateReview(
         systemInstruction,
         responseMimeType: "application/json",
         responseJsonSchema,
-        httpOptions: { timeout: TIMEOUTS.generateMs },
+        httpOptions: { timeout: TIMEOUTS.generateMs, retryOptions: { attempts: 1 } },
       },
     });
 

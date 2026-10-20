@@ -254,6 +254,11 @@ export async function runReview(versionId: number, runId: string): Promise<void>
   } catch (err) {
     const message = describeGeminiError(err);
     console.error(`[review] version ${versionId}: ${message}`);
+    if (err instanceof Error && err.message !== message) {
+      // The raw message helps debugging; the key never appears in it, but redact just in case.
+      const raw = err.message.replace(/AIza[0-9A-Za-z_-]{35}/g, "[key]").slice(0, 400);
+      console.error(`[review] raw ${err.name}${"status" in err ? ` ${String(err.status)}` : ""}: ${raw}`);
+    }
     db.update(versions)
       .set({
         aiStatus: "error",
