@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local data (uploads, SQLite)
+data/
+
+# keep the env template
+!.env.example
+
+# local tooling (never committed)
+scripts/check-em-dash.mjs
