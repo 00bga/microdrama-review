@@ -1,36 +1,20 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Microdrama Review Tool
 
-## Getting Started
+Take-home task for the AI Engineer (Technical Product Owner) role at Foxelli.
 
-First, run the development server:
+## The task
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Foxelli produces vertical microdramas where every shot is AI generated. Each 1 to 2 minute episode cut goes through a review round before it is approved: an AI pass drafts timecoded notes (hook, continuity, character consistency against cast reference images, pacing, cliffhanger), a strategist keeps, edits or adds notes on the same timeline, and every new cut becomes a new version that keeps the earlier notes and can be compared with the previous one. Episodes move from pending to in review to approved.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## How I am approaching it
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- One Next.js app that runs locally with `npm install` and `npm run dev`. No deployment, no accounts, nothing paid.
+- SQLite through Drizzle ORM. Uploaded cuts and cast images live in a git-ignored `data/` folder next to the database.
+- Google Gemini watches the video natively and returns notes as JSON with MM:SS timecodes. The model id is an environment variable, so it can be swapped without a code change.
+- AI notes arrive as drafts that a strategist keeps or discards. Re-running the AI never touches human notes.
+- A new cut is a new version. Open notes carry forward, the AI reports whether each one was fixed, and both versions can be viewed side by side.
+- Build order: the human-only round first (upload, notes, versions, approve), then the AI pass, then compare and polish. The end-to-end flow carries the most weight, so it lands and gets verified first.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Status
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+In progress. Setup steps, architecture notes and the write-up will be added as the build lands.
