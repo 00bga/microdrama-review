@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1",
     "lint": "eslint",
-    "models": "node --env-file=.env --experimental-strip-types scripts/list-models.ts",
-    "review:cli": "tsx --env-file=.env scripts/review.ts",
+    "models": "node --env-file=.env --experimental-strip-types scripts/list-models.mts",
+    "review:cli": "tsx --env-file=.env scripts/review.mts",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
