@@ -41,10 +41,17 @@ yarn-error.log*
 next-env.d.ts
 
 # local data (uploads, SQLite)
-data/
+/data/
 
 # keep the env template
 !.env.example
 
 # local tooling (never committed)
 scripts/check-em-dash.mjs
+
+# SQLite files anywhere, and the agent file next dev can write
+*.db
+*.db-wal
+*.db-shm
+*.sqlite*
+/AGENTS.md
