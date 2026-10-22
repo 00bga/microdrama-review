@@ -81,6 +81,25 @@ export async function createSeries(
   redirect(`/series/${row.id}`);
 }
 
+/** The series bible is free text; the AI gets it with every review of the series. */
+export async function updateSeriesBible(
+  _prev: { error?: string; savedAt?: number } | null,
+  formData: FormData,
+): Promise<{ error?: string; savedAt?: number }> {
+  const seriesId = parse(id, Number(formData.get("seriesId")));
+  if (typeof seriesId === "string") return { error: "Series not found" };
+  const bible = z.string().max(40_000, "The bible is longer than 40,000 characters").safeParse(formData.get("bible") ?? "");
+  if (!bible.success) return { error: bible.error.issues[0]?.message ?? "Invalid text" };
+  const result = getDb()
+    .update(series)
+    .set({ bible: bible.data.trim() })
+    .where(eq(series.id, seriesId))
+    .run();
+  if (result.changes === 0) return { error: "Series not found" };
+  refresh();
+  return { savedAt: Date.now() };
+}
+
 export async function createNote(input: unknown): Promise<ActionResult> {
   const data = parse(noteFields.extend({ versionId: id }), input);
   if (typeof data === "string") return fail(data);

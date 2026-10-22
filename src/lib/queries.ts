@@ -44,7 +44,7 @@ export type EpisodeRow = {
 };
 
 export type SeriesPage = {
-  series: { id: number; name: string; createdAt: number };
+  series: { id: number; name: string; bible: string; createdAt: number };
   cast: Array<{ id: number; name: string; description: string; updatedAt: number }>;
   episodes: EpisodeRow[];
   costUsd: number;
@@ -91,7 +91,7 @@ export async function getSeriesPage(seriesId: number): Promise<SeriesPage | null
   for (const v of vs) costUsd += v.aiCostUsd ?? 0;
 
   return {
-    series: { id: s.id, name: s.name, createdAt: s.createdAt },
+    series: { id: s.id, name: s.name, bible: s.bible, createdAt: s.createdAt },
     cast,
     costUsd,
     episodes: eps.map((e) => {

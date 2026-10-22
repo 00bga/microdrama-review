@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CastPanel } from "@/components/CastPanel";
+import { SeriesBibleForm } from "@/components/SeriesBibleForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { UploadCutForm } from "@/components/UploadCutForm";
 import { parseId } from "@/lib/ids";
@@ -107,6 +108,8 @@ export default async function SeriesPage(props: PageProps<"/series/[seriesId]">)
           <CastPanel seriesId={series.id} cast={cast} />
         </aside>
       </div>
+
+      <SeriesBibleForm seriesId={series.id} bible={series.bible} />
     </div>
   );
 }
