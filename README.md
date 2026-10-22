@@ -18,6 +18,8 @@ npm run dev
 
 Open http://127.0.0.1:3000. The server binds to this machine only; there is no login.
 
+`npm install` needs no compiler: the SQLite driver downloads a prebuilt binary for your platform. Only when that download is blocked does it fall back to building from source, which needs the usual native build tools.
+
 | Variable | Required | Meaning |
 |---|---|---|
 | `GOOGLE_API_KEY` | yes | Google AI Studio key. `GEMINI_API_KEY` works as an alias. |
