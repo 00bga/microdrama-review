@@ -12,6 +12,8 @@ export function createEpisodeWithFirstCut(
   seriesId: number,
   title: string,
   cut: NewCut,
+  /** the episode number; the next free number when omitted */
+  requestedNumber?: number,
 ): { episodeId: number; versionId: number; number: number } {
   const db = getDb();
   return db.transaction((tx) => {
@@ -21,7 +23,7 @@ export function createEpisodeWithFirstCut(
       .from(episodes)
       .where(eq(episodes.seriesId, seriesId))
       .get();
-    const number = (top?.n ?? 0) + 1;
+    const number = requestedNumber ?? (top?.n ?? 0) + 1;
     const episode = tx
       .insert(episodes)
       .values({ seriesId, number, title, status: "pending", createdAt: now, updatedAt: now })

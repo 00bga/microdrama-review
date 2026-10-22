@@ -9,6 +9,8 @@
     "lint": "eslint",
     "models": "node --env-file=.env --experimental-strip-types scripts/list-models.mts",
     "review:cli": "tsx --env-file=.env scripts/review.mts",
+    "import:examples": "tsx scripts/import-examples.mts",
+    "eval:examples": "tsx --env-file=.env scripts/eval-examples.mts",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

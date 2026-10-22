@@ -43,6 +43,9 @@ next-env.d.ts
 # local data (uploads, SQLite)
 /data/
 
+# the example package, if you drop it next to the app (internal material, never committed)
+/microdrama-review-examples/
+
 # keep the env template
 !.env.example
 
