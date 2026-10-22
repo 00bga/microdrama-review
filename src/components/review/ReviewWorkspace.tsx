@@ -25,6 +25,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export function ReviewWorkspace({ data }: { data: Workspace }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const compareRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<HTMLDivElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
@@ -72,9 +73,19 @@ export function ReviewWorkspace({ data }: { data: Workspace }) {
     setCurrentTime(t);
   }
 
+  /** Scrolls the player back into view when a note far down the list starts playback. */
+  function revealPlayer() {
+    const el = playerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.top >= 0 && r.bottom <= window.innerHeight) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function selectNote(note: NoteView, play = false) {
     setSelectedId(note.id);
     seek(note.tStart, play);
+    if (play) revealPlayer();
     const c = compareRef.current;
     if (c && compareId !== null) {
       const twin = related(note, compareId);
@@ -87,6 +98,7 @@ export function ReviewWorkspace({ data }: { data: Workspace }) {
     const index = notes.findIndex((n) => n.id === selectedId);
     const next = index === -1 ? (delta === 1 ? 0 : notes.length - 1) : Math.min(notes.length - 1, Math.max(0, index + delta));
     selectNote(notes[next]);
+    document.getElementById(`note-${notes[next].id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   useEffect(() => {
@@ -190,7 +202,7 @@ export function ReviewWorkspace({ data }: { data: Workspace }) {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <div className="space-y-3">
+        <div ref={playerRef} className="scroll-mt-4 space-y-3">
           <div className={compareId !== null ? "grid grid-cols-2 gap-3" : ""}>
             <VideoPlayer
               src={`/api/versions/${current.id}/video`}

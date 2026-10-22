@@ -40,6 +40,7 @@ export function NoteCard({ note, durationS, selected, readOnly, currentTime, onS
 
   return (
     <li
+      id={`note-${note.id}`}
       className={`rounded-lg border bg-white p-3 shadow-sm transition ${
         selected ? "border-zinc-900 ring-1 ring-zinc-900" : "border-zinc-200 hover:border-zinc-400"
       } ${note.status === "resolved" ? "opacity-70" : ""}`}
