@@ -2,7 +2,6 @@
 import { eq } from "drizzle-orm";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import { Readable } from "node:stream";
 import type { NextRequest } from "next/server";
 import { getDb, schema } from "@/db";
 import { parseId } from "@/lib/ids";
@@ -45,6 +44,39 @@ export function parseRange(header: string | null, size: number): { start: number
   return { start, end };
 }
 
+/**
+ * A byte window of the file as a pull-based stream: one chunk per pull, so a slow client gets real
+ * backpressure, and nothing touches the controller after the browser abandons the request (every
+ * seek does that), which is what made Readable.toWeb log "Controller is already closed".
+ */
+function bytesOf(abs: string, start: number, end: number, signal: AbortSignal): ReadableStream<Uint8Array> {
+  const file = createReadStream(abs, { start, end });
+  const chunks = file[Symbol.asyncIterator]();
+  const stop = () => file.destroy();
+  signal.addEventListener("abort", stop, { once: true });
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const next = await chunks.next();
+        if (next.done) controller.close();
+        else controller.enqueue(next.value as Uint8Array);
+      } catch (err) {
+        // A destroyed file stream (the client left) is not an error worth reporting.
+        try {
+          if (signal.aborted) controller.close();
+          else controller.error(err);
+        } catch {
+          // the consumer already closed the stream
+        }
+      }
+    },
+    cancel() {
+      signal.removeEventListener("abort", stop);
+      stop();
+    },
+  });
+}
+
 function baseHeaders(target: Target): Record<string, string> {
   return {
     "Content-Type": target.mimeType,
@@ -70,9 +102,7 @@ function respond(req: NextRequest, target: Target, withBody: boolean): Response 
   const status = range === "full" ? 200 : 206;
   if (!withBody || target.size === 0) return new Response(null, { status, headers });
 
-  const file = createReadStream(target.abs, { start: window.start, end: window.end });
-  req.signal.addEventListener("abort", () => file.destroy(), { once: true });
-  return new Response(Readable.toWeb(file) as unknown as ReadableStream, { status, headers });
+  return new Response(bytesOf(target.abs, window.start, window.end, req.signal), { status, headers });
 }
 
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/versions/[id]/video">) {
