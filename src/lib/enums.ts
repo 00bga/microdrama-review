@@ -15,6 +15,7 @@ export const NOTE_CATEGORIES = [
   "character",
   "pacing",
   "performance",
+  "clarity",
   "cliffhanger",
   "other",
 ] as const;
@@ -27,6 +28,7 @@ export const AI_NOTE_CATEGORIES = [
   "character",
   "pacing",
   "performance",
+  "clarity",
   "cliffhanger",
 ] as const;
 
@@ -48,6 +50,7 @@ export const CATEGORY_LABELS: Record<NoteCategory, string> = {
   character: "Character",
   pacing: "Pacing",
   performance: "Performance",
+  clarity: "Clarity",
   cliffhanger: "Cliffhanger",
   other: "Other",
 };

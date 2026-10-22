@@ -7,6 +7,7 @@ export const CATEGORY_STYLES: Record<NoteCategory, { marker: string; pill: strin
   character: { marker: "bg-violet-500 border-violet-500", pill: "bg-violet-50 text-violet-700 ring-violet-200" },
   pacing: { marker: "bg-amber-500 border-amber-500", pill: "bg-amber-50 text-amber-700 ring-amber-200" },
   performance: { marker: "bg-emerald-500 border-emerald-500", pill: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+  clarity: { marker: "bg-teal-500 border-teal-500", pill: "bg-teal-50 text-teal-700 ring-teal-200" },
   cliffhanger: { marker: "bg-fuchsia-500 border-fuchsia-500", pill: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200" },
   other: { marker: "bg-zinc-500 border-zinc-500", pill: "bg-zinc-100 text-zinc-700 ring-zinc-200" },
 };

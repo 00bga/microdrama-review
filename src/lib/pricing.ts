@@ -1,7 +1,9 @@
-// List prices per 1M tokens (USD, Gemini API pricing page, 2026-10-19). The free tier bills $0;
-// the figure is shown so a strategist can see what a round would cost on a paid key.
+// List prices per 1M tokens (USD, Gemini API pricing page, 2026-10-19; the 3.8 and 3.6 Flash rates
+// double on 2027-01-01). The free tier bills $0; the figure is shown so a strategist can see what a
+// round would cost on a paid key. A model that is not listed here shows no cost.
 export const LIST_PRICES: Record<string, { input: number; output: number; cached: number }> = {
   "gemini-3.8-flash": { input: 0.75, output: 3.75, cached: 0.075 },
+  "gemini-3.6-flash": { input: 0.75, output: 3.75, cached: 0.075 },
   "gemini-3.5-flash-lite": { input: 0.3, output: 2.5, cached: 0.03 },
 };
 

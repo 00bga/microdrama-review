@@ -19,23 +19,25 @@ How a microdrama is judged:
 4. Pacing (each 8 to 10 second block): every block must add information, tension or an emotional shift; flag holds, shots that communicate nothing and repeated beats to trim, and moments where the viewer cannot tell where they are or who is speaking.
 5. Performance (close-ups): emotion must read at phone size; expressions must not be flat or duplicated across shots. Use dialogue, music and sound effects as evidence and quote the line you mean. Never judge lip sync.
 6. Cliffhanger (the last 5 to 15 seconds): the episode ends on a new complication with the question still open; tension is not spent early; the final frame hands off to the next episode.
+7. Clarity (every shot): the viewer must know where they are, whose camera or point of view this is, who is speaking and what the object in frame is. A shot that leaves one of those open is a clarity note, even when the shot is pretty, and so is on-screen text that cannot be read in time.
 
-Severity: a hook failure or a spoiled or soft cliffhanger is high; identity drift in close-ups is high; medium is noticeable on a second watch but not a drop-off risk; minor background flicker is low.
+Severity: a hook failure or a spoiled or soft cliffhanger is high; identity drift in close-ups is high; a run of shots that leaves the viewer lost is high; medium is noticeable on a second watch but not a drop-off risk, including a single unreadable insert; minor background flicker is low.
 
 Method: go through the cut shot by shot, as a strategist does with a finger on the pause button. For every shot ask: does it earn its length, does it add information or tension, can the viewer tell where they are and who is speaking, does the reaction read as the scene needs, does anything break with the previous shot, with the world or with the bible. Most notes strategists write are about one shot or one line, in this style:
 - "this shot holds for six seconds with nothing changing; cut it to two" (pacing)
 - "this frame communicates nothing; remove it" (pacing)
-- "we cannot read what she is typing; needs a closer insert" (pacing, clarity)
+- "we cannot read what she is typing; needs a closer insert" (clarity)
 - "his face was wet in the previous shot and dry here" (continuity)
 - "a sheet of paper hangs in mid-air with nothing holding it" (continuity)
-- "the location is unreadable: it opens on a wide with a tiny figure; start on a close-up, then the wide" (pacing, clarity)
+- "the location is unreadable: it opens on a wide with a tiny figure; start on a close-up, then the wide" (clarity)
+- "whose camera is this? nothing established a handheld in this room" (clarity)
 - "he reads as a regular person here, not the menacing figure in the bible; flatter delivery, more stillness" (character)
 - "she should look annoyed here, not neutral" (performance)
 - "when she says this line she has to point at the salt line, or the line means nothing" (performance)
-On a first cut strategists usually find 6 to 12 such moments; a first cut with fewer than four is rare, so look again shot by shot before returning few notes. A leader of under one second of black is normal and never a note.
+On a rough first cut strategists write 10 to 25 such notes, on a late cut a few or none. A first cut with fewer than six notes is rare, so look again shot by shot before returning few. A leader of under one second of black is normal and never a note.
 
 Rules:
-- Return 0 to 12 notes. Zero is valid for a clean cut. Never add a note to reach a number, and never leave out a moment a strategist would stop the video for.
+- Return 0 to 20 notes. Zero is valid for a clean cut. Never add a note to reach a number, and never leave out a moment a strategist would stop the video for.
 - Fill hookCheck and cliffhangerCheck, each with a verdict (strong or weak) and a reason. Write a hook note only when the hook verdict is weak, anchored inside 00:00 to 00:10. Write a cliffhanger note only when that verdict is weak, anchored inside the last 15 seconds.
 - Assess every item listed under OPEN NOTES in previousNoteAssessments: fixed, not_fixed or unclear, with a rationale and, when the moment still exists, its new position in this cut as newTimecode. Be strict: fixed means the problem is gone and you can say what changed; when you cannot see a change, not_fixed; when the moment was cut out of the episode, fixed with no newTimecode. A moment covered by an OPEN NOTES item is reported only there, never as a new note, and an ALREADY NOTED item is never repeated.
 - Anchor each note to one moment: timecode as MM:SS, plus endTimecode when the problem spans a range. Every timecode must lie inside the video length given below. The body is at most two sentences: the observation, why it hurts, the fix. The evidence field names exactly what you saw or heard; a continuity note names the earlier shot and its timecode. Never write vague notes such as "feels slow".
@@ -103,7 +105,7 @@ export function buildResponseSchema(castNames: string[], openAliases: string[]) 
   const properties: Record<string, unknown> = {
     notes: {
       type: "array",
-      maxItems: 12,
+      maxItems: 20,
       items: {
         type: "object",
         properties: noteProperties,
