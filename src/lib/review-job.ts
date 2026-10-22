@@ -9,7 +9,7 @@ import {
   describeGeminiError,
   ensureVideoFile,
   generateReview,
-  getModelId,
+  getModelIds,
   type Stage,
 } from "@/lib/gemini";
 import { estimateCost, type TokenUsage } from "@/lib/pricing";
@@ -124,6 +124,7 @@ function loadContext(versionId: number): Context {
       episodeNumber: row.episode.number,
       versionNumber: v.number,
       durationS: v.durationS,
+      seriesBible: row.series.bible,
       cast: castInput,
       alreadyNoted,
       openNotes,
@@ -139,7 +140,8 @@ export async function runReview(versionId: number, runId: string): Promise<void>
     db.update(versions).set({ aiStage: stage }).where(fenced).run();
   };
   let usage: TokenUsage | null = null;
-  const model = getModelId();
+  const models = getModelIds();
+  let model = models[0];
 
   try {
     const ctx = loadContext(versionId);
@@ -164,12 +166,13 @@ export async function runReview(versionId: number, runId: string): Promise<void>
     const aliases = [...ctx.openByAlias.keys()];
     const result = await generateReview(
       ai,
-      model,
+      models,
       buildContents(ctx.input),
       buildResponseSchema(castNames, aliases),
       SYSTEM_INSTRUCTION,
     );
     usage = result.usage;
+    model = result.model;
 
     let parsed: unknown;
     try {

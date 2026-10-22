@@ -1,8 +1,8 @@
 // Runs one AI review outside the app, with the exact request shape the app sends.
 //
 //   npm run review:cli -- --video E:/samples/v1.mp4 [--duration 87.4] [--cast "Mira=E:/samples/mira.png"]
-//                         [--noted noted.json] [--open open.json] [--series Demo] [--episode "Ep 1"]
-//                         [--version 1] [--model gemini-3.5-flash-lite] [--save run.json]
+//                         [--bible bible.txt] [--noted noted.json] [--open open.json] [--series Demo]
+//                         [--episode "Ep 1"] [--version 1] [--model gemini-3.5-flash-lite] [--save run.json]
 //
 // --open takes a JSON array of {timecode, category, severity, title, body, fromVersion}; the items
 // become P1..Pn. Uploads are cached in <video>.gemini.json next to the sample, outside the repo.
@@ -15,8 +15,10 @@ import {
   describeGeminiError,
   ensureVideoFile,
   generateReview,
-  getModelId,
+  getModelIds,
+  parseModelList,
 } from "@/lib/gemini";
+import { mp4Duration } from "@/lib/mp4";
 import { estimateCost, fmtUsd } from "@/lib/pricing";
 import {
   buildContents,
@@ -37,6 +39,7 @@ const { values } = parseArgs({
     video: { type: "string" },
     duration: { type: "string" },
     cast: { type: "string", multiple: true, default: [] },
+    bible: { type: "string" },
     noted: { type: "string" },
     open: { type: "string" },
     series: { type: "string", default: "Demo" },
@@ -51,41 +54,6 @@ const { values } = parseArgs({
 if (!values.video) {
   console.error("Usage: npm run review:cli -- --video <file.mp4> [--duration s] [--cast Name=image.png] [--open open.json] [--save out.json]");
   process.exit(1);
-}
-
-/** Reads the duration from the MP4 container (moov/mvhd). Other containers need --duration. */
-function mp4Duration(buf: Buffer): number | null {
-  const find = (start: number, end: number, type: string): [number, number] | null => {
-    let pos = start;
-    while (pos + 8 <= end) {
-      let size = buf.readUInt32BE(pos);
-      const name = buf.toString("latin1", pos + 4, pos + 8);
-      let header = 8;
-      if (size === 1) {
-        size = Number(buf.readBigUInt64BE(pos + 8));
-        header = 16;
-      } else if (size === 0) {
-        size = end - pos;
-      }
-      if (size < header) return null;
-      if (name === type) return [pos + header, pos + size];
-      pos += size;
-    }
-    return null;
-  };
-  const moov = find(0, buf.length, "moov");
-  if (!moov) return null;
-  const mvhd = find(moov[0], moov[1], "mvhd");
-  if (!mvhd) return null;
-  const version = buf.readUInt8(mvhd[0]);
-  if (version === 1) {
-    const timescale = buf.readUInt32BE(mvhd[0] + 20);
-    const duration = Number(buf.readBigUInt64BE(mvhd[0] + 24));
-    return timescale > 0 ? duration / timescale : null;
-  }
-  const timescale = buf.readUInt32BE(mvhd[0] + 12);
-  const duration = buf.readUInt32BE(mvhd[0] + 16);
-  return timescale > 0 ? duration / timescale : null;
 }
 
 const videoPath = path.resolve(values.video);
@@ -111,12 +79,14 @@ const cast: CastInput[] = (values.cast ?? []).map((spec) => {
 });
 const castByName = new Map(cast.map((c, i) => [c.name, i + 1]));
 
+const seriesBible = values.bible ? readFileSync(values.bible, "utf8") : "";
 const alreadyNoted: NotedInput[] = values.noted ? JSON.parse(readFileSync(values.noted, "utf8")) : [];
 const openRaw: Omit<OpenNoteInput, "alias">[] = values.open ? JSON.parse(readFileSync(values.open, "utf8")) : [];
 const openNotes: OpenNoteInput[] = openRaw.map((n, i) => ({ ...n, alias: `P${i + 1}` }));
 const openByAlias = new Map(openNotes.map((n, i) => [n.alias, i + 1]));
 
-const model = values.model?.trim() || getModelId();
+const models = values.model?.trim() ? parseModelList(values.model) : getModelIds();
+let model = models[0];
 const ai = createClient();
 const started = Date.now();
 const stamp = (msg: string) => console.log(`[${((Date.now() - started) / 1000).toFixed(1)}s] ${msg}`);
@@ -139,14 +109,16 @@ try {
     episodeNumber: Number(values.number ?? "1"),
     versionNumber: Number(values.version ?? "1"),
     durationS,
+    seriesBible,
     cast,
     alreadyNoted,
     openNotes,
     video: { uri: file.uri, mimeType: file.mimeType },
   };
   const schema = buildResponseSchema([...castByName.keys()], [...openByAlias.keys()]);
-  stamp(`calling ${model} (prompt ${PROMPT_VERSION}, ${cast.length} cast, ${alreadyNoted.length} noted, ${openNotes.length} open)`);
-  const result = await generateReview(ai, model, buildContents(input), schema, SYSTEM_INSTRUCTION);
+  stamp(`calling ${models.join(", ")} (prompt ${PROMPT_VERSION}, ${cast.length} cast, ${alreadyNoted.length} noted, ${openNotes.length} open)`);
+  const result = await generateReview(ai, models, buildContents(input), schema, SYSTEM_INSTRUCTION);
+  model = result.model;
   const elapsedMs = Date.now() - started;
   const raw = JSON.parse(result.text);
   const review = normalizeReview(raw, { durationS, castByName, openByAlias });

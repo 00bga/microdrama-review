@@ -8,6 +8,13 @@
       "when": 1792522074708,
       "tag": "0000_thankful_iron_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1792664647045,
+      "tag": "0001_purple_bloodstrike",
+      "breakpoints": true
     }
   ]
 }

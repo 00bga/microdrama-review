@@ -23,6 +23,8 @@ import {
 export const series = sqliteTable("series", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
+  /** the show's rules (logline, tone, visual rules, characters); sent with every AI review */
+  bible: text("bible").notNull().default(""),
   createdAt: integer("created_at").notNull(),
 });
 

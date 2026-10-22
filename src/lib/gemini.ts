@@ -9,7 +9,8 @@ import {
 import { setTimeout as sleep } from "node:timers/promises";
 import type { TokenUsage } from "@/lib/pricing";
 
-export const DEFAULT_MODEL = "gemini-3.8-flash";
+/** 3.8 Flash for the best notes, 3.6 Flash behind it for the hours when 3.8 is overloaded. */
+export const DEFAULT_MODEL = "gemini-3.8-flash,gemini-3.6-flash";
 
 export const TIMEOUTS = {
   /** client-wide cap, which is what the upload request gets (a per-upload option breaks the SDK's upload URL) */
@@ -19,9 +20,28 @@ export const TIMEOUTS = {
   pollMs: 3_000,
 };
 
-/** An empty GEMINI_MODEL= line loads as "", which is why this is || and not ??. */
+/**
+ * GEMINI_MODEL holds one model id, or several separated by commas: the next one is tried when the
+ * one before is overloaded (503 or 504). An empty GEMINI_MODEL= line loads as "", hence || not ??.
+ */
+export function getModelIds(): string[] {
+  const raw = process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
+  const ids = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return ids.length > 0 ? ids : [DEFAULT_MODEL];
+}
+
+/** The preferred model: the first entry of GEMINI_MODEL. */
 export function getModelId(): string {
-  return process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
+  return getModelIds()[0];
+}
+
+/** "a, b" or ["a", "b"] to a clean list. */
+export function parseModelList(raw: string | string[]): string[] {
+  const list = Array.isArray(raw) ? raw : raw.split(",");
+  return list.map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
 export function getApiKey(): string | null {
@@ -126,21 +146,34 @@ export type GenerateResult = {
   text: string;
   usage: TokenUsage;
   finishReason: string | null;
+  /** the model that answered (the first in the list that was not overloaded) */
+  model: string;
 };
 
 export function isRetryable(err: unknown): boolean {
-  return err instanceof ApiError && (err.status === 500 || err.status === 503);
+  return err instanceof ApiError && (err.status === 500 || err.status === 503 || err.status === 504);
 }
 
-/** One structured-output call. Retries once, after a pause, on 500 or 503 only; never on 429. */
+/** The SDK's own timeout (AbortError) or a socket timeout: the model hung, so it is not worth a retry. */
+export function isTimeout(err: unknown): boolean {
+  return err instanceof Error && (err.name === "AbortError" || /timeout|timed out/i.test(err.message));
+}
+
+/**
+ * One structured-output call. On 500, 503 or 504 the same model is retried once after a pause; after
+ * that, or when the model hangs until the timeout, the next model in the list gets its turn. Never
+ * retries on 429, which would burn the free quota.
+ */
 export async function generateReview(
   ai: GoogleGenAI,
-  model: string,
+  models: string | string[],
   contents: Content[],
   responseJsonSchema: unknown,
   systemInstruction: string,
 ): Promise<GenerateResult> {
-  const call = () =>
+  const list = parseModelList(models);
+  if (list.length === 0) throw new Error("No model id: set GEMINI_MODEL");
+  const call = (model: string) =>
     ai.models.generateContent({
       model,
       contents,
@@ -152,14 +185,30 @@ export async function generateReview(
       },
     });
 
-  let response;
-  try {
-    response = await call();
-  } catch (err) {
-    if (!isRetryable(err)) throw err;
-    await sleep(4_000);
-    response = await call();
+  let response: Awaited<ReturnType<typeof call>> | null = null;
+  let model = list[0];
+  for (let i = 0; i < list.length && response === null; i++) {
+    model = list[i];
+    const last = i === list.length - 1;
+    try {
+      response = await call(model);
+    } catch (err) {
+      if (isTimeout(err)) {
+        if (last) throw err;
+        console.warn(`[gemini] ${model} did not answer in time, trying ${list[i + 1]}`);
+        continue;
+      }
+      if (!isRetryable(err)) throw err;
+      await sleep(4_000);
+      try {
+        response = await call(model);
+      } catch (again) {
+        if (!(isRetryable(again) || isTimeout(again)) || last) throw again;
+        console.warn(`[gemini] ${model} is overloaded, trying ${list[i + 1]}`);
+      }
+    }
   }
+  if (response === null) throw new Error("No model answered");
 
   const blocked = response.promptFeedback?.blockReason;
   if (blocked) {
@@ -183,6 +232,7 @@ export async function generateReview(
   return {
     text,
     finishReason,
+    model,
     usage: {
       input: u?.promptTokenCount ?? 0,
       output: u?.candidatesTokenCount ?? 0,
@@ -219,6 +269,9 @@ export function describeGeminiError(err: unknown): string {
     }
     if (err.status === 403) {
       return "The API key is not allowed to do this (403): check the key's project in AI Studio";
+    }
+    if (err.status === 503 || err.status === 504) {
+      return `The model is overloaded right now (${err.status}). Run it again in a minute, or add a fallback model to GEMINI_MODEL`;
     }
     if (err.status >= 500) return `Gemini had a server error (${err.status}). Run it again in a minute`;
     const firstLine = msg.split("\n")[0].slice(0, 200);
