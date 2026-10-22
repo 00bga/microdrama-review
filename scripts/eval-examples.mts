@@ -5,7 +5,7 @@
 //
 //   npm run eval:examples -- --list
 //   npm run eval:examples -- --cut "Bound to the Demon King/Episode 04/v1" [--model gemini-3.5-flash-lite]
-//                            [--window 4] [--no-carry] [--dir microdrama-review-examples]
+//                            [--window 6] [--no-carry] [--dir microdrama-review-examples]
 //
 // Every run is saved under data/eval/. Uploads are cached in <video>.gemini.json next to the cut.
 import { createHash } from "node:crypto";
@@ -42,7 +42,7 @@ const { values } = parseArgs({
     dir: { type: "string", default: "microdrama-review-examples" },
     cut: { type: "string" },
     model: { type: "string" },
-    window: { type: "string", default: "4" },
+    window: { type: "string", default: "6" },
     "no-carry": { type: "boolean", default: false },
     list: { type: "boolean", default: false },
   },
@@ -76,7 +76,8 @@ if (!s || !e || !cut) {
   process.exit(1);
 }
 
-const window = Number(values.window ?? "4");
+// Strategists pause a few seconds after the moment and the AI anchors on the shot start, hence 6 s.
+const window = Number(values.window ?? "6");
 const carry = !values["no-carry"] && cut.number > 1;
 const models = values.model?.trim() ? parseModelList(values.model) : getModelIds();
 let model = models[0];

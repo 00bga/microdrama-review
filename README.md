@@ -21,7 +21,7 @@ Open http://127.0.0.1:3000. The server binds to this machine only; there is no l
 | Variable | Required | Meaning |
 |---|---|---|
 | `GOOGLE_API_KEY` | yes | Google AI Studio key. `GEMINI_API_KEY` works as an alias. |
-| `GEMINI_MODEL` | no | One model id, or several separated by commas: the next one is tried when the one before is overloaded (503 or 504) or hangs. Default `gemini-3.8-flash,gemini-3.6-flash`; `gemini-3.5-flash-lite` is cheaper with a higher daily quota. `npm run models` lists what your key can call. |
+| `GEMINI_MODEL` | no | One model id, or several separated by commas: the next one is tried when the one before is overloaded (503 or 504) or hangs. Default `gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite`; Flash-Lite is cheaper with a higher daily quota and is rarely overloaded, so it closes the list. `npm run models` lists what your key can call. |
 
 Variables already set in your shell override `.env`.
 

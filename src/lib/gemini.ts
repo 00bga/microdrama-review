@@ -9,8 +9,8 @@ import {
 import { setTimeout as sleep } from "node:timers/promises";
 import type { TokenUsage } from "@/lib/pricing";
 
-/** 3.8 Flash for the best notes, 3.6 Flash behind it for the hours when 3.8 is overloaded. */
-export const DEFAULT_MODEL = "gemini-3.8-flash,gemini-3.6-flash";
+/** 3.8 Flash for the best notes, 3.6 Flash for the hours when 3.8 is overloaded, Flash-Lite as the last resort. */
+export const DEFAULT_MODEL = "gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite";
 
 export const TIMEOUTS = {
   /** client-wide cap, which is what the upload request gets (a per-upload option breaks the SDK's upload URL) */
@@ -159,10 +159,15 @@ export function isTimeout(err: unknown): boolean {
   return err instanceof Error && (err.name === "AbortError" || /timeout|timed out/i.test(err.message));
 }
 
+/** A rate limit or a spent daily quota: never retry this model, but another model has its own quota. */
+export function isQuota(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 429;
+}
+
 /**
  * One structured-output call. On 500, 503 or 504 the same model is retried once after a pause; after
- * that, or when the model hangs until the timeout, the next model in the list gets its turn. Never
- * retries on 429, which would burn the free quota.
+ * that, or when the model hangs until the timeout, or on a 429, the next model in the list gets its
+ * turn. The same model is never retried on 429, which would burn the free quota.
  */
 export async function generateReview(
   ai: GoogleGenAI,
@@ -193,9 +198,9 @@ export async function generateReview(
     try {
       response = await call(model);
     } catch (err) {
-      if (isTimeout(err)) {
+      if (isTimeout(err) || isQuota(err)) {
         if (last) throw err;
-        console.warn(`[gemini] ${model} did not answer in time, trying ${list[i + 1]}`);
+        console.warn(`[gemini] ${model} ${isQuota(err) ? "is out of quota" : "did not answer in time"}, trying ${list[i + 1]}`);
         continue;
       }
       if (!isRetryable(err)) throw err;

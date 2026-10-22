@@ -103,9 +103,10 @@ export function buildResponseSchema(castNames: string[], openAliases: string[]) 
   }
 
   const properties: Record<string, unknown> = {
+    // No maxItems here: together with the cast enum it pushes the schema over the API's complexity
+    // limit on some series (400 "invalid argument"). The cap lives in the instruction text.
     notes: {
       type: "array",
-      maxItems: 20,
       items: {
         type: "object",
         properties: noteProperties,
