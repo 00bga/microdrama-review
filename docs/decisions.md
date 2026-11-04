@@ -1,0 +1,47 @@
+# Decisions
+
+Numbered decisions, each in four lines: the question, the options, the measurement or reason, the decision. "Measured: no" means the decision rests on reasoning, not on a number from this project. Round-2 decisions are appended as they are made; dropped experiments stay in the list with their numbers.
+
+## Round 1 (product)
+
+**D1. How the model sees the cut.** Options: a video-native model that takes the whole file; frame sampling plus an image model; a transcript plus frames. Reason: a video-native call keeps audio, motion and timing in one request and needs no ffmpeg; the free tier allows it. Measured: no. Decision: one video-native call per cut through the Files API.
+
+**D2. One process or services.** Options: one Next.js app with SQLite; a separate worker and queue; a hosted database. Reason: the brief asks for a local tool for a small team; one process on one machine is the smallest thing that can fail. Measured: no. Decision: one Next.js app, SQLite, uploads on local disk.
+
+**D3. AI notes as drafts.** Options: AI notes land as open notes; AI notes land as drafts a strategist keeps or deletes. Reason: a strategist must own the note list, and a wrong AI note that nobody deleted would block approval. Measured: no. Decision: drafts, with keep and delete; approval gated on zero open notes.
+
+**D4. Carried notes as copies.** Options: a note points at its earlier version; a note is copied into the new cut with a link back. Reason: a copy can carry its own fixed / not fixed verdict and its own new timecode without touching the earlier cut's record. Measured: no. Decision: copies with `carriedFromNoteId`, verdicts from the model, suggested new timecodes.
+
+**D5. Model fallback list.** Options: one model; a list tried in order on overload. Reason: the free tier returns 503 at busy hours; the next model has its own quota. Measured: yes, in round 1 (503 storms on 3.8 Flash). Decision: `gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite`, overridable, and `--pin` for scorecard runs so a scored run never mixes models.
+
+**D6. The bible in the prompt.** Options: no bible; the bible as a rulebook to audit shots against; the bible as a description of who the characters are. Reason (round 1): the bible is what the team judges tone against. Measured in round 1: no. Revisited in round 2 as D12.
+
+**D7. Cost line at list price.** Options: show nothing; show the free-tier $0; show the list price of the call. Reason: a strategist deciding to run the tool on a paid key needs the number per cut. Measured: no. Decision: tokens and list price per call, with "free tier $0 billed".
+
+## Round 2 (measurement and levers)
+
+**D8. What accuracy means.** Options: the share of strategist notes with an AI note within 6 s (round 1); precision of AI notes by time; human-confirmed coverage of strategist moments, with a chance floor and the validity of the tool's own notes. Measurement: on the four round-1 3.8 Flash dev runs, the time-only rule scored 24 of 58 moments (41%) against a floor of 45% for the same number of evenly spaced dummy notes (`npm run eval:score --set dev` on the round-1 runs, before labels), so the round-1 number could not tell the tool from a metronome. Decision: the pre-registered definition in docs/accuracy.md: anchored moments, family-filtered matching, confirmed coverage as the headline, floors beside every automatic number, validity beside every coverage number.
+
+**D9. Unit of recall.** Options: the strategist note; chained clusters of notes (a note joins a cluster if within 4 s of any member); anchored moments (within 4 s of the first note). Measurement: chaining merges The Haunted Crew E01 v2's 38 notes (median gap 2 s) into 4 clusters, anchoring gives 17. Decision: anchored moments, time only; note-level recall reported beside.
+
+**D10. The split.** Options: by series; by episode; by whether a cut has a saved model run from round 1. Reason: the saved-run rule is checkable from file names and from the round-1 write-up the company holds, and it puts every cut that round 1 studied, and every cut whose notes shaped the round-1 prompt, into dev. Measured: no (a rule, not a number). Decision: dev = the four cuts with saved runs; held-out = the four with none; E04 v3 shakedown only.
+
+**D11. Pre-registration.** Options: define the metric after seeing round-2 numbers; commit the definition, the split, the contact list and the label hash before any scored call, and push the tag. Reason: a pushed tag is a timestamp the author cannot set. Measured: no. Decision: one commit, tagged `prereg-1`, before the first scored round-2 call.
+
+**D12. The first lever: zero-call fixes.** Options: start with the schema; start with the prompt text; start with what costs no calls. Measurement: round 1 kept only the first 12 notes (`review-output.ts`), while the model wrote 4 to 9 on 3.8 Flash; the round-1 prompt already asked for "10 to 25 notes" next to "zero is valid" and "never add a note to reach a number", and the model obeyed the dampening. Decision: lift the cap (sanity cap 60), purge the paraphrased examples, then measure the text changes (persona as a first-time phone viewer, the bible as a description not a rulebook, delivery and sound and rendering and transition lenses, density keyed on carried notes) as arm A against the purged baseline.
+
+**D13. Two arms, attributed by mechanism.** Options: one combined change; text first and schema second as separate arms. Reason: "why the schema" needs its own row; the shot-list schema is the arm most likely to fail at the API (schema complexity, latency), so the text arm is also the measured fallback. Decision: arm A (text) and arm AB (text plus shot list per block, a block field per note), both on 3.6 Flash with the same seed, the winner confirmed on 3.8 Flash; see docs/accuracy.md P12 for the keep conditions. Measured: pending.
+
+**D14. Windowed passes.** Options: one whole-cut call; one whole-cut call plus 40 s windows with 5 s overlap. Measurement: 1 + ceil((D - 5) / 35) calls per cut, about 25 calls per held-out run on this split, more than one day's free quota per model. Decision: not built this round; recorded as what to try next on a paid key.
+
+**D15. Exemplars from the team's own notes.** Options: none; strategist notes from other episodes shown as a style sample; the same series' notes (series memory). Reason: the cheapest known fix for under-production and the product story "the tool learns the team's voice", with the leakage rule stated (other series only in the frozen configuration; series memory as a labelled extra outside the headline). Measured: pending (ablation with and without on dev).
+
+**D16. Category `sound`.** Options: keep sound under performance; a new category. Measurement: on The Villain's Therapist E01 v1 about 10 of 24 strategist notes were about voice delivery or sound and the round-1 model wrote none. Decision: `sound` added to the enums and the UI; no migration (the column is plain text); delivery stays under performance, rendering under continuity, transitions under pacing.
+
+**D17. Family map, one deviation from the panel text.** Options: the panel's map (performance and sound to delivery and sound; character to character and emotion); the same with emotion also reachable from performance. Reason: the prompt's performance lens is "the emotion must read at phone size", so an AI performance note about a flat expression must be able to match a strategist emotion note; without it the map would score a correct note as a miss. Decision: performance maps to delivery, emotion and sound; the rest as the panel wrote. Measured: no (fixed before any scored call).
+
+**D18. Seed and temperature.** Options: no seed; a fixed seed; temperature 0. Reason: a seed makes a rerun of run 1 send the same request, while run 2 (seed 1000 plus the run index) is a different draw, so the published spread is the API's own variation; temperature stays at its default so the measured configuration is what the app ships. Measured: pending. Decision: seed = 1000 + run index in the evaluation; unset in the app unless `GEMINI_SEED` is given.
+
+**D19. The ledger and the reserve.** Options: count calls by hand; a ledger that every attempt is appended to, with a stop at 15 per model per Pacific day. Reason: round 1 lost most of a day to 503 storms and a spent quota; the reserve keeps 5 calls per model for the app and for resumed held-out cuts. Measured: no. Decision: `data/eval/ledger.jsonl`, the sweep refuses to start past the reserve and stops at the first failure.
+
+**D20. Model-aware options.** Options: send every option to every model; send thinking only to models that report thought tokens and drop an option the API rejects by name. Measurement: the saved round-1 runs show thought tokens on 3.8 and 3.6 Flash and zero on Flash-Lite. Decision: thinking goes only to models that report thoughts; a 400 that names an option drops it and tries again.

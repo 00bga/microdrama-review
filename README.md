@@ -59,7 +59,7 @@ Next.js 16 (App Router, TypeScript, Tailwind)
    data/               SQLite database and uploaded files (not committed)
 ```
 
-The AI pass sends the whole cut (Gemini samples it at 1 frame per second with audio), the cast images inline, the series bible, the notes already on the cut (so they are not repeated) and, for a later cut, the carried-over notes to re-check. The response schema forces `MM:SS` anchors, a category, a severity, evidence and an explicit hook and cliffhanger verdict, so the model is not pushed to invent notes: zero notes is a valid answer.
+The AI pass sends the whole cut (by default the API samples it at 1 frame per second, with audio), the cast images inline, the series bible, a sample of how this team writes notes (strategist notes from other episodes), the notes already on the cut (so they are not repeated) and, for a later cut, the carried-over notes to re-check. The prompt asks the model to watch as a first-time viewer on a phone and to write a note wherever a strategist would stop the video, about one every 8 to 12 seconds on a rough cut; the shot-list arm makes it list the shots of every 10 s block before writing notes. The response schema forces `MM:SS` anchors, a category, a severity, evidence and an explicit hook and cliffhanger verdict. Every lever was measured; see [docs/accuracy.md](docs/accuracy.md) and [docs/decisions.md](docs/decisions.md).
 
 ## Scripts
 
@@ -70,7 +70,10 @@ The AI pass sends the whole cut (Gemini samples it at 1 frame per second with au
 | `npm run models` | list the models your key can call with `generateContent` |
 | `npm run review:cli -- --video cut.mp4 --cast "Mira=mira.png"` | run one review outside the app with the same request shape; `--bible bible.txt` adds the series rules, `--save run.json` keeps the result |
 | `npm run import:examples` | load the example package (below) into the app |
-| `npm run eval:examples -- --cut "<series>/<episode>/v1"` | blind review of one example cut, scored against the strategists' notes; `--list` shows the cuts |
+| `npm run eval:run -- --set dev --model gemini-3.6-flash --pin` | blind reviews of a set of example cuts (or one `--cut`), one JSON per run under `data/eval/`; keyed on cut, prompt version and run index; stops at the first failure and prints the resume command; `--list` shows the cuts |
+| `npm run eval:score` | scores every saved run against the strategists' notes with zero API calls (moments, chance floors, intervals); `--report` rewrites the tables in docs/accuracy.md; `--scaffold`, `--judgments` and the export flags write the label and judgment files; `--budget` shows the calls used today |
+| `npm run eval:check` | unit checks for the scorer's pure functions |
+| `npm run eval:scan` | confidentiality check: no tracked file shares five consecutive words with a note from the example package |
 | `npm run db:generate` | generate a migration after a schema change |
 
 ## Trying it with the example package
@@ -84,7 +87,9 @@ npm run dev                 # then open a series, pick an episode and press Run 
 
 Older cuts stay read only with their own notes; the latest cut carries the open notes forward, exactly as if the cuts had been uploaded one by one. The import is safe to repeat: a series that already exists is skipped.
 
-`npm run eval:examples -- --cut "Bound to the Demon King/Episode 04/v1"` reviews one cut blind (without that cut's strategist notes) and prints which strategist notes the AI hit within a few seconds, which it missed and what it added. For v2 and later the previous cut's notes go in as carried notes, so the fixed / not fixed verdicts can be read against what the strategists wrote next. Runs are saved under `data/eval/`.
+`npm run eval:run -- --cut "Bound to the Demon King/Episode 04/v1" --model gemini-3.6-flash --pin` reviews one cut blind (without that cut's strategist notes) and saves the run under `data/eval/`; `npm run eval:score` then scores every saved run against the strategists' notes with zero API calls. For v2 and later the previous cut's notes go in as carried notes, so the fixed / not fixed verdicts can be read against what the strategists wrote next. How accuracy is defined, which cuts were tuned on and which were held out, and where the numbers land is in [docs/accuracy.md](docs/accuracy.md).
+
+A database written by this version should not be opened with the code at the `submission` tag (round 1): that build indexes category styles directly and does not know the `sound` category added since.
 
 ## Free tier notes
 
@@ -96,7 +101,7 @@ Older cuts stay read only with their own notes; the latest cut carries the open 
 ## Known limits
 
 - Local single-user tool: no accounts, no roles, no deployment.
-- One reference image per cast member; the AI sees the cut at 1 frame per second, so a glitch shorter than a second can be missed.
+- One reference image per cast member; by default the AI sees the cut at 1 frame per second (`GEMINI_FPS` raises it; what that changed is measured in docs/accuracy.md), so a glitch shorter than a second can be missed.
 - Model output varies between runs. Notes are drafts for a strategist, not verdicts.
 - Uploads are capped at 300 MB and 10 minutes. HEVC `.mov` files play only where the browser supports them; export H.264 MP4.
 - A re-run of the AI review replaces the untriaged drafts of that cut and re-judges the carried notes; kept and human notes stay.
