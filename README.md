@@ -91,6 +91,21 @@ Older cuts stay read only with their own notes; the latest cut carries the open 
 
 A database written by this version should not be opened with the code at the `submission` tag (round 1): that build indexes category styles directly and does not know the `sound` category added since.
 
+## Design decisions
+
+The reasoning behind the main choices, each measured where a number exists; the full list with options and measurements is in [docs/decisions.md](docs/decisions.md), the accuracy protocol and its results in [docs/accuracy.md](docs/accuracy.md).
+
+- The model watches the whole cut in one call (video, audio, cast photos, bible): no frame extraction, no ffmpeg, one key is the whole setup.
+- AI notes land as drafts a strategist keeps or deletes, so the AI never writes into the note list unasked; the cost is triage, which is priced in the write-up.
+- Carried notes are copies with their own fixed / not fixed verdict and new timecode, so every cut keeps its history.
+- Accuracy is defined before it is measured: the definition, the tuning and held-out split, the prior-contact list and the hash of the label file were committed and tagged before any scored call.
+- A number is never printed alone: automatic coverage always sits beside its chance floor, the human-confirmed figure beside the validity of the tool's own notes.
+- Round 1's time-only metric scored at chance under this rule, which is why the definition changed; the write-up says so.
+- The prompt was rebuilt as a first-time phone viewer with delivery, sound, rendering and transition lenses, and measured as separate arms (text alone, text plus a shot list per block) attributed by what each changed.
+- A note the model restates at the new timecode of its own verdict is dropped as a duplicate, counted and shown.
+- Every call, failed ones included, goes into a ledger that stops a sweep before it passes the free tier's daily limit.
+- Windowed passes, generate-then-verify and series memory were costed and left for a paid key, with the measurements that say why.
+
 ## Free tier notes
 
 - Quotas are per Google Cloud project and per model. In October 2026 a new free key allowed 20 requests a day for each Flash model, failed calls included, and the counter reset at midnight Pacific time; AI Studio shows the limits for your account. When one model in the list is out of quota the app moves on to the next; when all are, it says so and tells you when the quota resets.
