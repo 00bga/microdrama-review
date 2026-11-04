@@ -357,7 +357,7 @@ for (const target of pending) {
     const hit6 = truth.filter((tn) => review.notes.some((an) => Math.abs(an.tStart - tn.time) <= 6)).length;
     const d = review.diagnostics;
     console.log(
-      `  ${review.notes.length} notes (${review.droppedNotes} dropped), ${review.assessments.length} verdicts, ` +
+      `  ${review.notes.length} notes (${review.droppedNotes} dropped, ${review.droppedEchoes} echoed carried notes dropped), ${review.assessments.length} verdicts, ` +
         `${truth.length} strategist notes, ${hit6} within 6 s by time only; ` +
         `blocks ${d.blocksListed}, shots ${d.shotsListed}, boundary share ${d.boundaryShare === null ? "n/a" : Math.round(d.boundaryShare * 100) + "%"}, out of block ${d.outOfBlock}; ` +
         `${generateS.toFixed(1)} s generate, tokens in ${result.usage.input} out ${result.usage.output} thoughts ${result.usage.thoughts}, finish ${result.finishReason}, list price ${fmtUsd(estimateCost(model, result.usage))}`,

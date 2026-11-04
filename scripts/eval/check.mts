@@ -175,7 +175,7 @@ check("echoed notes: a note within 2 s of a not_fixed verdict new timecode is an
     file: "", savedAt: "", cut: "", set: null, model: "", promptVersion: "", runIndex: 1, label: null, config: null, durationS: 100, generateS: null,
     usage: { input: 0, output: 0, thoughts: 0 }, finishReason: null, openNotes: [],
     normalized: {
-      shotList: [], notes: [note(10), note(31), note(50)], castChecks: [], hook: null, cliffhanger: null, summary: "", droppedNotes: 0, droppedAssessments: 0,
+      shotList: [], notes: [note(10), note(31), note(50)], castChecks: [], hook: null, cliffhanger: null, summary: "", droppedNotes: 0, droppedAssessments: 0, droppedEchoes: 0,
       diagnostics: { boundaryShare: null, shotStartShare: null, outOfBlock: 0, blocksListed: 0, shotsListed: 0 },
       assessments: [
         { noteId: 1, assessment: "not_fixed" as const, rationale: "", suggestedTStart: 30, suggestedTEnd: null },
@@ -184,6 +184,26 @@ check("echoed notes: a note within 2 s of a not_fixed verdict new timecode is an
     },
   };
   assert.deepEqual([...echoedNoteIndexes(run)], [1]);
+});
+
+check("normalizeReview: a note within 2 s of a not_fixed verdict new timecode is dropped and counted", () => {
+  const raw = {
+    notes: [
+      { timecode: "00:10", category: "pacing", severity: "low", title: "a", body: "b", evidence: "e" },
+      { timecode: "00:31", category: "pacing", severity: "low", title: "echo", body: "b", evidence: "e" },
+      { timecode: "00:50", category: "pacing", severity: "low", title: "c", body: "b", evidence: "e" },
+    ],
+    previousNoteAssessments: [
+      { ref: "P1", assessment: "not_fixed", rationale: "r", newTimecode: "00:30" },
+      { ref: "P2", assessment: "fixed", rationale: "r", newTimecode: "00:50" },
+    ],
+    hookCheck: { verdict: "strong", reason: "r" },
+    cliffhangerCheck: { verdict: "strong", reason: "r" },
+    summary: "s",
+  };
+  const r = normalizeReview(raw, { durationS: 100, castByName: new Map(), openByAlias: new Map([["P1", 1], ["P2", 2]]) });
+  assert.equal(r.droppedEchoes, 1);
+  assert.deepEqual(r.notes.map((n) => n.tStart), [10, 50]);
 });
 
 console.log(`\n${passed} checks passed`);

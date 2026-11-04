@@ -298,7 +298,7 @@ export function loadRuns(dir = EVAL_DIR): RunRecord[] {
       usage: (j.usage as RunRecord["usage"]) ?? { input: 0, output: 0, thoughts: 0 },
       finishReason: (j.finishReason as string | null | undefined) ?? null,
       openNotes: input.openNotes ?? [],
-      normalized: { ...normalized, notes: normalized.notes.map((n) => ({ ...n, block: n.block ?? null })) },
+      normalized: { ...normalized, droppedEchoes: normalized.droppedEchoes ?? 0, notes: normalized.notes.map((n) => ({ ...n, block: n.block ?? null })) },
     });
   }
   // Round-1 records carry no run index: number them by save time within (cut, version, model).
@@ -540,7 +540,7 @@ export function scoreRun(
     set: cut.set,
     unlabelled: unlabelledCut,
     notes: run.normalized.notes.length,
-    echoes: echoedNoteIndexes(run).size,
+    echoes: (run.normalized.droppedEchoes ?? 0) + echoedNoteIndexes(run).size,
     sources: sources.length,
     strategistNotes: notes.length,
     moments: moments.length,

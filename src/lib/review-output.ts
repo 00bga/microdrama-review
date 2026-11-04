@@ -122,8 +122,13 @@ export type NormalizedReview = {
   summary: string;
   droppedNotes: number;
   droppedAssessments: number;
+  /** notes the model wrote at the new timecode of its own not_fixed verdict: the carried note restated, dropped */
+  droppedEchoes: number;
   diagnostics: Diagnostics;
 };
+
+/** A new note this close to a not_fixed verdict's new timecode restates the carried note instead of adding one. */
+export const ECHO_WINDOW_S = 2;
 
 export type NormalizeContext = {
   durationS: number;
@@ -193,6 +198,7 @@ export function normalizeReview(raw: unknown, ctx: NormalizeContext): Normalized
     summary: stripDashes(top.summary),
     droppedNotes: 0,
     droppedAssessments: 0,
+    droppedEchoes: 0,
     diagnostics: { boundaryShare: null, shotStartShare: null, outOfBlock: 0, blocksListed: 0, shotsListed: 0 },
   };
 
@@ -253,6 +259,16 @@ export function normalizeReview(raw: unknown, ctx: NormalizeContext): Normalized
       matchesReference: c.matchesReference,
       evidence: stripDashes(c.evidence),
     });
+  }
+
+  // The carried note already exists with its verdict; a new note at that spot would show it twice.
+  const verdictTimes = result.assessments
+    .filter((a) => a.assessment === "not_fixed" && a.suggestedTStart !== null)
+    .map((a) => a.suggestedTStart as number);
+  if (verdictTimes.length > 0) {
+    const kept = result.notes.filter((n) => !verdictTimes.some((t) => Math.abs(t - n.tStart) <= ECHO_WINDOW_S));
+    result.droppedEchoes = result.notes.length - kept.length;
+    result.notes = kept;
   }
 
   result.diagnostics = computeDiagnostics(result.notes, result.shotList, ctx.durationS);

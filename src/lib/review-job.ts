@@ -215,6 +215,7 @@ export async function runReview(versionId: number, runId: string): Promise<void>
     });
     const summaryParts = [composeSummary(review)];
     if (review.droppedNotes > 0) summaryParts.push(`${review.droppedNotes} note(s) dropped: invalid format`);
+    if (review.droppedEchoes > 0) summaryParts.push(`${review.droppedEchoes} note(s) dropped: restated a carried note at its new timecode`);
     const now = Date.now();
 
     db.transaction((tx) => {
