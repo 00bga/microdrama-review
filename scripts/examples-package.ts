@@ -207,3 +207,50 @@ export function strategistBody(n: StrategistNote): string {
   for (const r of n.replies) parts.push(`Reply: ${r.trim()}`);
   return parts.join("\n\n");
 }
+
+// ---- the round-2 split (fixed in the pre-registration commit; see docs/accuracy.md) -------------
+
+export type EvalSet = "dev" | "test" | "shakedown";
+
+/** Dev = every cut with a saved model run from round 1; test (held-out) = every cut with none; shakedown is never scored. */
+export const EVAL_SETS: Record<EvalSet, string[]> = {
+  dev: [
+    "Bound to the Demon King/Episode 04/v1",
+    "Bound to the Demon King/Episode 04/v2",
+    "The Haunted Crew/Episode 01/v2",
+    "The Villain's Therapist/Episode 01/v1",
+  ],
+  test: [
+    "Everyone But Her/Episode 12/v2",
+    "Everyone But Her/Episode 12/v3",
+    "Bound to the Demon King/Episode 06/v2",
+    "The Villain's Therapist/Episode 01/v2",
+  ],
+  shakedown: ["Bound to the Demon King/Episode 04/v3"],
+};
+
+export function setOf(cutLabel: string): EvalSet | null {
+  for (const [name, cuts] of Object.entries(EVAL_SETS)) if (cuts.includes(cutLabel)) return name as EvalSet;
+  return null;
+}
+
+export type CutRef = { series: PackageSeries; episode: PackageEpisode; cut: PackageCut; label: string };
+
+export function cutLabel(series: PackageSeries, episode: PackageEpisode, cut: PackageCut): string {
+  return `${series.name}/${episode.title}/v${cut.number}`;
+}
+
+/** "<series>/<episode>/vN" with loose, case-insensitive matching on the series and episode parts. */
+export function findCut(pack: PackageSeries[], term: string): CutRef | null {
+  const [seriesTerm, episodeTerm, cutTerm] = term.split("/").map((p) => p.trim());
+  const cutNumber = Number(/^v?(\d+)$/i.exec(cutTerm ?? "")?.[1]);
+  const series = pack.find((x) => x.name.toLowerCase().includes((seriesTerm ?? "").toLowerCase()));
+  const episode = series?.episodes.find((x) => x.title.toLowerCase().includes((episodeTerm ?? "").toLowerCase()));
+  const cut = episode?.cuts.find((c) => c.number === cutNumber);
+  if (!series || !episode || !cut) return null;
+  return { series, episode, cut, label: cutLabel(series, episode, cut) };
+}
+
+export function slugOf(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}

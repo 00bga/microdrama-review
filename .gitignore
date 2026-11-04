@@ -58,3 +58,8 @@ scripts/check-em-dash.mjs
 *.db-shm
 *.sqlite*
 /AGENTS.md
+
+# hand labels and judgments (confidential: they describe the review package), never committed
+/eval/
+*.labels.json
+*.judgments.json

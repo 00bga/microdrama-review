@@ -10,7 +10,10 @@
     "models": "node --env-file=.env --experimental-strip-types scripts/list-models.mts",
     "review:cli": "tsx --env-file=.env scripts/review.mts",
     "import:examples": "tsx scripts/import-examples.mts",
-    "eval:examples": "tsx --env-file=.env scripts/eval-examples.mts",
+    "eval:run": "tsx --env-file=.env scripts/eval-examples.mts",
+    "eval:score": "tsx scripts/eval/score.mts",
+    "eval:check": "tsx scripts/eval/check.mts",
+    "eval:scan": "tsx scripts/eval/overlap-scan.mts",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
