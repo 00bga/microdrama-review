@@ -7,6 +7,11 @@ import { fmtUsd } from "@/lib/pricing";
 
 type Props = { version: Version; isLatest: boolean; draftCount: number };
 
+/** 31420 tokens as "31k"; under a thousand as is. */
+function fmtK(n: number): string {
+  return n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+}
+
 const STAGE_TEXT: Record<string, string> = {
   uploading: "Uploading the cut to Gemini",
   processing: "Gemini is processing the video",
@@ -89,8 +94,8 @@ export function AiStatusBanner({ version, isLatest, draftCount }: Props) {
               done with {version.aiModel}
               {tokens && (
                 <>
-                  : {version.aiInputTokens} in, {(version.aiOutputTokens ?? 0) + (version.aiThoughtTokens ?? 0)} out, list price{" "}
-                  {fmtUsd(version.aiCostUsd)} (free tier: $0 billed)
+                  : 1 call, {fmtK(version.aiInputTokens ?? 0)} tokens in, {fmtK((version.aiOutputTokens ?? 0) + (version.aiThoughtTokens ?? 0))}{" "}
+                  out, list price {fmtUsd(version.aiCostUsd)}, free tier $0 billed
                 </>
               )}
             </span>

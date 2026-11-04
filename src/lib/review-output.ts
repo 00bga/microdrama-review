@@ -9,7 +9,7 @@ import {
   type NoteCategory,
   type Severity,
 } from "@/lib/enums";
-import { parseTimecode } from "@/lib/time";
+import { blocksFor, parseTimecode } from "@/lib/time";
 
 const EM_DASH = String.fromCharCode(0x2014);
 const EN_DASH = String.fromCharCode(0x2013);
@@ -21,6 +21,12 @@ const ANY_EN = new RegExp(EN_DASH, "g");
 export function stripDashes(text: string): string {
   return text.replace(SPACED_EM, ", ").replace(SPACED_EN, ", ").replace(ANY_EN, "-").trim();
 }
+
+/**
+ * A sanity cap, not a target: round 1 silently kept the first 12 notes, which would have hidden any
+ * coverage gain. A rough three-minute cut can carry 40 strategist notes, so the cap sits well above.
+ */
+export const MAX_NOTES = 60;
 
 const checkSchema = z.object({
   verdict: z.enum(["strong", "weak"]),
@@ -36,6 +42,7 @@ const noteSchema = z.object({
   body: z.string().trim().min(1).max(2000),
   evidence: z.string().trim().max(2000).optional(),
   castMember: z.string().optional(),
+  block: z.number().int().optional(),
 });
 
 const assessmentSchema = z.object({
@@ -53,7 +60,13 @@ const castCheckSchema = z.object({
   evidence: z.string().trim().max(1000).default(""),
 });
 
+const shotBlockSchema = z.object({
+  block: z.number().int(),
+  shots: z.array(z.string()).default([]),
+});
+
 const outputSchema = z.object({
+  shotList: z.array(z.unknown()).optional(),
   notes: z.array(z.unknown()).default([]),
   castChecks: z.array(z.unknown()).optional(),
   hookCheck: checkSchema.optional(),
@@ -71,6 +84,8 @@ export type NormalizedNote = {
   body: string;
   evidence: string | null;
   castMemberId: number | null;
+  /** the block the model filed the note under (arm AB), null in arm A */
+  block: number | null;
 };
 
 export type NormalizedAssessment = {
@@ -83,7 +98,22 @@ export type NormalizedAssessment = {
 
 export type CastCheck = { castMemberId: number | null; name: string; seen: boolean; matchesReference: boolean; evidence: string };
 
+export type ShotBlock = { block: number; shots: string[] };
+
+/** Where the timecodes landed, for the arm AB check that the shot walk did not turn into block filler. */
+export type Diagnostics = {
+  /** share of note timecodes within 0.5 s of a 10 s boundary; uniform expectation about 10%, failure at 25% */
+  boundaryShare: number | null;
+  /** share of note timecodes within 0.5 s of a listed shot start */
+  shotStartShare: number | null;
+  /** notes whose timecode falls outside the block they were filed under (kept, counted) */
+  outOfBlock: number;
+  blocksListed: number;
+  shotsListed: number;
+};
+
 export type NormalizedReview = {
+  shotList: ShotBlock[];
   notes: NormalizedNote[];
   assessments: NormalizedAssessment[];
   castChecks: CastCheck[];
@@ -92,6 +122,7 @@ export type NormalizedReview = {
   summary: string;
   droppedNotes: number;
   droppedAssessments: number;
+  diagnostics: Diagnostics;
 };
 
 export type NormalizeContext = {
@@ -117,9 +148,41 @@ function range(start: unknown, end: unknown, durationS: number): { tStart: numbe
   return { tStart, tEnd: tEnd !== null && tEnd >= tStart ? tEnd : null };
 }
 
+/** The MM:SS at the head of a shot line, if the model wrote one. */
+export function shotStart(line: string): number | null {
+  const m = /^\s*(\d{1,2}:\d{2}(?:\.\d+)?)/.exec(line);
+  return m ? parseTimecode(m[1]) : null;
+}
+
+export function computeDiagnostics(notes: NormalizedNote[], shotList: ShotBlock[], durationS: number): Diagnostics {
+  const blocks = blocksFor(durationS);
+  const starts = shotList.flatMap((b) => b.shots.map(shotStart)).filter((t): t is number => t !== null);
+  let boundary = 0;
+  let atShot = 0;
+  let outOfBlock = 0;
+  for (const n of notes) {
+    const rem = n.tStart % 10;
+    if (rem <= 0.5 || rem >= 9.5) boundary += 1;
+    if (starts.some((s) => Math.abs(s - n.tStart) <= 0.5)) atShot += 1;
+    if (n.block !== null) {
+      const b = blocks.find((x) => x.n === n.block);
+      if (!b || n.tStart < b.startS - 0.5 || n.tStart > b.endS + 0.5) outOfBlock += 1;
+    }
+  }
+  const total = notes.length;
+  return {
+    boundaryShare: total > 0 ? boundary / total : null,
+    shotStartShare: total > 0 && starts.length > 0 ? atShot / total : null,
+    outOfBlock,
+    blocksListed: shotList.length,
+    shotsListed: shotList.reduce((n, b) => n + b.shots.length, 0),
+  };
+}
+
 export function normalizeReview(raw: unknown, ctx: NormalizeContext): NormalizedReview {
   const top = outputSchema.parse(raw);
   const result: NormalizedReview = {
+    shotList: [],
     notes: [],
     assessments: [],
     castChecks: [],
@@ -130,9 +193,16 @@ export function normalizeReview(raw: unknown, ctx: NormalizeContext): Normalized
     summary: stripDashes(top.summary),
     droppedNotes: 0,
     droppedAssessments: 0,
+    diagnostics: { boundaryShare: null, shotStartShare: null, outOfBlock: 0, blocksListed: 0, shotsListed: 0 },
   };
 
-  for (const item of top.notes.slice(0, 12)) {
+  for (const item of top.shotList ?? []) {
+    const parsed = shotBlockSchema.safeParse(item);
+    if (!parsed.success) continue;
+    result.shotList.push({ block: parsed.data.block, shots: parsed.data.shots.map((s) => stripDashes(s)) });
+  }
+
+  for (const item of top.notes.slice(0, MAX_NOTES)) {
     const parsed = noteSchema.safeParse(item);
     const span = parsed.success ? range(parsed.data.timecode, parsed.data.endTimecode, ctx.durationS) : null;
     if (!parsed.success || !span) {
@@ -149,8 +219,10 @@ export function normalizeReview(raw: unknown, ctx: NormalizeContext): Normalized
       body: stripDashes(n.body),
       evidence: n.evidence ? stripDashes(n.evidence) : null,
       castMemberId: n.castMember ? (ctx.castByName.get(n.castMember) ?? null) : null,
+      block: n.block ?? null,
     });
   }
+  result.droppedNotes += Math.max(0, top.notes.length - MAX_NOTES);
 
   for (const item of top.previousNoteAssessments ?? []) {
     const parsed = assessmentSchema.safeParse(item);
@@ -183,6 +255,7 @@ export function normalizeReview(raw: unknown, ctx: NormalizeContext): Normalized
     });
   }
 
+  result.diagnostics = computeDiagnostics(result.notes, result.shotList, ctx.durationS);
   return result;
 }
 

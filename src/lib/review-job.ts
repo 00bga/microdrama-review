@@ -4,6 +4,7 @@
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { readFileSync } from "node:fs";
 import { getDb, schema } from "@/db";
+import { pickExemplars } from "@/lib/exemplars";
 import {
   createClient,
   describeGeminiError,
@@ -12,19 +13,21 @@ import {
   getModelIds,
   type Stage,
 } from "@/lib/gemini";
+import { appendLedger } from "@/lib/ledger";
 import { estimateCost, type TokenUsage } from "@/lib/pricing";
 import {
   buildContents,
   buildResponseSchema,
-  PROMPT_VERSION,
-  SYSTEM_INSTRUCTION,
+  buildSystemInstruction,
+  promptVersion,
   type CastInput,
   type NotedInput,
   type OpenNoteInput,
   type ReviewInput,
 } from "@/lib/prompt";
+import { reviewConfigFromEnv } from "@/lib/review-config";
 import { composeSummary, normalizeReview } from "@/lib/review-output";
-import { fmtTime } from "@/lib/time";
+import { fmtTime, pacificDate } from "@/lib/time";
 import { resolveDataPath } from "@/lib/uploads";
 
 const { castMembers, episodes, notes, series, versions } = schema;
@@ -45,12 +48,13 @@ type Context = {
   castByName: Map<string, number>;
   openByAlias: Map<string, number>;
   episodeId: number;
+  cutLabel: string;
   absVideoPath: string;
   mimeType: string;
   cached: { name: string; uri: string; expiresAt: number | null } | null;
 };
 
-function loadContext(versionId: number): Context {
+function loadContext(versionId: number, exemplarCount: number): Context {
   const db = getDb();
   const row = db
     .select({ version: versions, episode: episodes, series: series })
@@ -110,6 +114,7 @@ function loadContext(versionId: number): Context {
   const v = row.version;
   return {
     episodeId: row.episode.id,
+    cutLabel: `${row.series.name}/${row.episode.title}/v${v.number}`,
     absVideoPath: resolveDataPath(v.videoPath),
     mimeType: v.mimeType,
     cached:
@@ -128,6 +133,7 @@ function loadContext(versionId: number): Context {
       cast: castInput,
       alreadyNoted,
       openNotes,
+      exemplars: pickExemplars(row.episode.id, row.series.id, exemplarCount),
       video: { uri: "", mimeType: "" },
     },
   };
@@ -142,9 +148,11 @@ export async function runReview(versionId: number, runId: string): Promise<void>
   let usage: TokenUsage | null = null;
   const models = getModelIds();
   let model = models[0];
+  const config = reviewConfigFromEnv();
+  const version = promptVersion(config.prompt);
 
   try {
-    const ctx = loadContext(versionId);
+    const ctx = loadContext(versionId, config.prompt.exemplars);
     const ai = createClient();
 
     const file = await ensureVideoFile(
@@ -167,9 +175,29 @@ export async function runReview(versionId: number, runId: string): Promise<void>
     const result = await generateReview(
       ai,
       models,
-      buildContents(ctx.input),
-      buildResponseSchema(castNames, aliases),
-      SYSTEM_INSTRUCTION,
+      buildContents(ctx.input, config.prompt.arm, config.prompt.video),
+      buildResponseSchema(castNames, aliases, config.prompt.arm),
+      buildSystemInstruction(config.prompt.arm),
+      {
+        thinking: config.prompt.thinking,
+        seed: config.seed,
+        retryWaitMs: 30_000,
+        onAttempt: (a) => {
+          const now = Date.now();
+          appendLedger({
+            at: new Date(now).toISOString(),
+            pacificDate: pacificDate(now),
+            model: a.model,
+            source: "app",
+            cut: ctx.cutLabel,
+            status: a.status,
+            httpStatus: a.httpStatus,
+            generateS: Math.round(a.generateS * 10) / 10,
+            promptVersion: version,
+            runIndex: null,
+          });
+        },
+      },
     );
     usage = result.usage;
     model = result.model;
@@ -240,7 +268,7 @@ export async function runReview(versionId: number, runId: string): Promise<void>
           aiFinishedAt: now,
           aiError: null,
           aiModel: model,
-          promptVersion: PROMPT_VERSION,
+          promptVersion: version,
           aiSummary: summaryParts.join("\n"),
           aiInputTokens: result.usage.input,
           aiOutputTokens: result.usage.output,

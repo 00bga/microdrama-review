@@ -1,4 +1,5 @@
-// Runs one AI review outside the app, with the exact request shape the app sends.
+// Runs one AI review outside the app, with the exact request shape the app sends (the arm, the
+// exemplar count and the sampling options come from the same environment variables).
 //
 //   npm run review:cli -- --video E:/samples/v1.mp4 [--duration 87.4] [--cast "Mira=E:/samples/mira.png"]
 //                         [--bible bible.txt] [--noted noted.json] [--open open.json] [--series Demo]
@@ -23,13 +24,14 @@ import { estimateCost, fmtUsd } from "@/lib/pricing";
 import {
   buildContents,
   buildResponseSchema,
-  PROMPT_VERSION,
-  SYSTEM_INSTRUCTION,
+  buildSystemInstruction,
+  promptVersion,
   type CastInput,
   type NotedInput,
   type OpenNoteInput,
   type ReviewInput,
 } from "@/lib/prompt";
+import { reviewConfigFromEnv } from "@/lib/review-config";
 import { composeSummary, normalizeReview } from "@/lib/review-output";
 import { fmtTime } from "@/lib/time";
 import { VIDEO_TYPES } from "@/lib/uploads";
@@ -87,6 +89,8 @@ const openByAlias = new Map(openNotes.map((n, i) => [n.alias, i + 1]));
 
 const models = values.model?.trim() ? parseModelList(values.model) : getModelIds();
 let model = models[0];
+const config = reviewConfigFromEnv();
+const version = promptVersion(config.prompt);
 const ai = createClient();
 const started = Date.now();
 const stamp = (msg: string) => console.log(`[${((Date.now() - started) / 1000).toFixed(1)}s] ${msg}`);
@@ -113,11 +117,17 @@ try {
     cast,
     alreadyNoted,
     openNotes,
+    exemplars: [],
     video: { uri: file.uri, mimeType: file.mimeType },
   };
-  const schema = buildResponseSchema([...castByName.keys()], [...openByAlias.keys()]);
-  stamp(`calling ${models.join(", ")} (prompt ${PROMPT_VERSION}, ${cast.length} cast, ${alreadyNoted.length} noted, ${openNotes.length} open)`);
-  const result = await generateReview(ai, models, buildContents(input), schema, SYSTEM_INSTRUCTION);
+  const arm = config.prompt.arm;
+  const schema = buildResponseSchema([...castByName.keys()], [...openByAlias.keys()], arm);
+  stamp(`calling ${models.join(", ")} (prompt ${version}, arm ${arm}, ${cast.length} cast, ${alreadyNoted.length} noted, ${openNotes.length} open)`);
+  const result = await generateReview(ai, models, buildContents(input, arm, config.prompt.video), schema, buildSystemInstruction(arm), {
+    thinking: config.prompt.thinking,
+    seed: config.seed,
+    retryWaitMs: 30_000,
+  });
   model = result.model;
   const elapsedMs = Date.now() - started;
   const raw = JSON.parse(result.text);
@@ -147,9 +157,11 @@ try {
     const record = {
       savedAt: new Date().toISOString(),
       model,
-      promptVersion: PROMPT_VERSION,
+      promptVersion: version,
+      config: config.prompt,
       elapsedMs,
       usage: u,
+      attempts: result.attempts,
       input: { ...input, cast: cast.map((c) => ({ name: c.name, description: c.description, mimeType: c.mimeType })) },
       raw,
       normalized: review,

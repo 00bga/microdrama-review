@@ -9,12 +9,15 @@ export type AiStatus = (typeof AI_STATUSES)[number];
 export const AI_STAGES = ["uploading", "processing", "analysing"] as const;
 export type AiStage = (typeof AI_STAGES)[number];
 
+// "sound" was added in round 2 (voice delivery, VO level, effects). The column is plain text, so
+// no migration; a database written by this code should not be opened with the round-1 build.
 export const NOTE_CATEGORIES = [
   "hook",
   "continuity",
   "character",
   "pacing",
   "performance",
+  "sound",
   "clarity",
   "cliffhanger",
   "other",
@@ -28,6 +31,7 @@ export const AI_NOTE_CATEGORIES = [
   "character",
   "pacing",
   "performance",
+  "sound",
   "clarity",
   "cliffhanger",
 ] as const;
@@ -50,6 +54,7 @@ export const CATEGORY_LABELS: Record<NoteCategory, string> = {
   character: "Character",
   pacing: "Pacing",
   performance: "Performance",
+  sound: "Sound",
   clarity: "Clarity",
   cliffhanger: "Cliffhanger",
   other: "Other",

@@ -3,10 +3,14 @@ import {
   ApiError,
   FileState,
   GoogleGenAI,
+  ThinkingLevel as SdkThinkingLevel,
   type Content,
   type File as GeminiFile,
+  type GenerateContentConfig,
+  type Part,
 } from "@google/genai";
 import { setTimeout as sleep } from "node:timers/promises";
+import type { AttemptStatus } from "@/lib/ledger";
 import type { TokenUsage } from "@/lib/pricing";
 
 /** 3.8 Flash for the best notes, 3.6 Flash for the hours when 3.8 is overloaded, Flash-Lite as the last resort. */
@@ -142,12 +146,100 @@ export async function ensureVideoFile(
   return uploadVideo(ai, absPath, mimeType, displayName, onStage);
 }
 
+// ---- generation options -------------------------------------------------------------------------
+
+export const RESOLUTIONS = ["low", "medium", "high"] as const;
+export type Resolution = (typeof RESOLUTIONS)[number];
+
+export const THINKING_LEVELS = ["minimal", "low", "medium", "high"] as const;
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
+
+const SDK_THINKING: Record<ThinkingLevel, SdkThinkingLevel> = {
+  minimal: SdkThinkingLevel.MINIMAL,
+  low: SdkThinkingLevel.LOW,
+  medium: SdkThinkingLevel.MEDIUM,
+  high: SdkThinkingLevel.HIGH,
+};
+
+/** Options on the video part: how the model samples the cut. Applied once, in buildContents. */
+export type VideoOptions = {
+  /** frames per second sent to the model; the API default is 1 */
+  fps?: number;
+  /** review only this span of the cut (seconds); the one place clipping is tried */
+  clip?: { startS: number; endS: number };
+  /** per-part media resolution for the video; cast images keep the default */
+  resolution?: Resolution;
+  /** fixed-rate frame extraction, set explicitly so the request shape is stated in the run record */
+  staticProcessing?: boolean;
+};
+
+/** Options on the request: how the model thinks and answers. */
+export type GenerateOptions = {
+  /** sent only to models that report thought tokens (Flash-Lite does not) */
+  thinking?: ThinkingLevel;
+  /** fixed so a rerun of the same configuration is as repeatable as the API allows */
+  seed?: number;
+  /** one model, no same-model retry on 503, no fallthrough: a scorecard run never mixes models */
+  pin?: boolean;
+  /** pause before the one same-model retry on 500, 503 or 504 (the app waits 30 s) */
+  retryWaitMs?: number;
+  /** called after every attempt, so the caller can append it to the ledger */
+  onAttempt?: (attempt: Attempt) => void;
+};
+
+export type Attempt = {
+  model: string;
+  status: AttemptStatus;
+  httpStatus: number | null;
+  /** seconds around generateContent only, never the upload */
+  generateS: number;
+  finishReason: string | null;
+  /** an option the API rejected by name (400), removed before the next attempt */
+  droppedOption: string | null;
+};
+
+/** The models known to report thought tokens on the free tier (from the saved runs); Flash-Lite reports 0. */
+export function supportsThinking(model: string): boolean {
+  return !/lite/i.test(model);
+}
+
+const OPTION_NAMES: Array<{ key: string; re: RegExp }> = [
+  { key: "thinking", re: /thinking/i },
+  { key: "resolution", re: /media_?resolution/i },
+  { key: "fps", re: /video_?metadata|\bfps\b|start_?offset|end_?offset/i },
+  { key: "staticProcessing", re: /media_?processing/i },
+  { key: "seed", re: /\bseed\b/i },
+];
+
+/** The option a 400 names, if any: the request is retried without it. */
+export function rejectedOption(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.status !== 400) return null;
+  for (const o of OPTION_NAMES) if (o.re.test(err.message)) return o.key;
+  return null;
+}
+
+/** A copy of the contents with one part-level option removed from every part. */
+function withoutPartOption(contents: Content[], option: string): Content[] {
+  return contents.map((c) => ({
+    ...c,
+    parts: (c.parts ?? []).map((p) => {
+      const q: Part = { ...p };
+      if (option === "fps") delete q.videoMetadata;
+      if (option === "resolution") delete q.mediaResolution;
+      if (option === "staticProcessing") delete q.mediaProcessing;
+      return q;
+    }),
+  }));
+}
+
 export type GenerateResult = {
   text: string;
   usage: TokenUsage;
   finishReason: string | null;
   /** the model that answered (the first in the list that was not overloaded) */
   model: string;
+  /** every attempt made, in order */
+  attempts: Attempt[];
 };
 
 export function isRetryable(err: unknown): boolean {
@@ -164,10 +256,21 @@ export function isQuota(err: unknown): boolean {
   return err instanceof ApiError && err.status === 429;
 }
 
+function statusOf(err: unknown): AttemptStatus {
+  if (isTimeout(err)) return "timeout";
+  if (isQuota(err)) return "quota";
+  if (isRetryable(err)) return "overloaded";
+  if (err instanceof ApiError && err.status === 400) return "rejected";
+  return "error";
+}
+
 /**
- * One structured-output call. On 500, 503 or 504 the same model is retried once after a pause; after
- * that, or when the model hangs until the timeout, or on a 429, the next model in the list gets its
- * turn. The same model is never retried on 429, which would burn the free quota.
+ * One structured-output call. Without pin: on 500, 503 or 504 the same model is retried once after
+ * a pause; after that, or when the model hangs until the timeout, or on a 429, the next model in
+ * the list gets its turn. With pin there is one model and one attempt, so a failure surfaces at
+ * once and the sweep can stop. A 400 that names an option (thinking, resolution, fps, media
+ * processing, seed) drops that option and tries again, on the next model when there is one,
+ * otherwise on the same model. Every attempt is reported through onAttempt for the ledger.
  */
 export async function generateReview(
   ai: GoogleGenAI,
@@ -175,41 +278,80 @@ export async function generateReview(
   contents: Content[],
   responseJsonSchema: unknown,
   systemInstruction: string,
+  options: GenerateOptions = {},
 ): Promise<GenerateResult> {
   const list = parseModelList(models);
   if (list.length === 0) throw new Error("No model id: set GEMINI_MODEL");
-  const call = (model: string) =>
-    ai.models.generateContent({
-      model,
-      contents,
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        responseJsonSchema,
-        httpOptions: { timeout: TIMEOUTS.generateMs, retryOptions: { attempts: 1 } },
-      },
-    });
+  if (options.pin && list.length > 1) throw new Error("pin takes exactly one model id");
+  const attempts: Attempt[] = [];
+  const dropped = new Set<string>();
+  let body = contents;
+
+  const call = async (model: string) => {
+    const config: GenerateContentConfig = {
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseJsonSchema,
+      httpOptions: { timeout: TIMEOUTS.generateMs, retryOptions: { attempts: 1 } },
+    };
+    if (options.thinking && supportsThinking(model) && !dropped.has("thinking")) {
+      config.thinkingConfig = { thinkingLevel: SDK_THINKING[options.thinking] };
+    }
+    if (options.seed !== undefined && !dropped.has("seed")) config.seed = options.seed;
+    const t0 = Date.now();
+    try {
+      const response = await ai.models.generateContent({ model, contents: body, config });
+      const finishReason = response.candidates?.[0]?.finishReason ?? null;
+      const attempt: Attempt = { model, status: "ok", httpStatus: 200, generateS: (Date.now() - t0) / 1000, finishReason, droppedOption: null };
+      attempts.push(attempt);
+      options.onAttempt?.(attempt);
+      return response;
+    } catch (err) {
+      const attempt: Attempt = {
+        model,
+        status: statusOf(err),
+        httpStatus: err instanceof ApiError ? err.status : null,
+        generateS: (Date.now() - t0) / 1000,
+        finishReason: null,
+        droppedOption: rejectedOption(err),
+      };
+      attempts.push(attempt);
+      options.onAttempt?.(attempt);
+      throw err;
+    }
+  };
 
   let response: Awaited<ReturnType<typeof call>> | null = null;
   let model = list[0];
   for (let i = 0; i < list.length && response === null; i++) {
     model = list[i];
     const last = i === list.length - 1;
+    const next = last ? null : list[i + 1];
     try {
       response = await call(model);
     } catch (err) {
+      const option = rejectedOption(err);
+      if (option && !dropped.has(option)) {
+        dropped.add(option);
+        body = withoutPartOption(body, option);
+        const again = options.pin || last;
+        console.warn(`[gemini] ${model} rejected the ${option} option; trying ${again ? "again" : next} without it`);
+        if (again) i -= 1; // the same model, once per option
+        continue;
+      }
+      if (options.pin) throw err;
       if (isTimeout(err) || isQuota(err)) {
         if (last) throw err;
-        console.warn(`[gemini] ${model} ${isQuota(err) ? "is out of quota" : "did not answer in time"}, trying ${list[i + 1]}`);
+        console.warn(`[gemini] ${model} ${isQuota(err) ? "is out of quota" : "did not answer in time"}, trying ${next}`);
         continue;
       }
       if (!isRetryable(err)) throw err;
-      await sleep(4_000);
+      await sleep(options.retryWaitMs ?? 30_000);
       try {
         response = await call(model);
       } catch (again) {
         if (!(isRetryable(again) || isTimeout(again)) || last) throw again;
-        console.warn(`[gemini] ${model} is overloaded, trying ${list[i + 1]}`);
+        console.warn(`[gemini] ${model} is overloaded, trying ${next}`);
       }
     }
   }
@@ -238,6 +380,7 @@ export async function generateReview(
     text,
     finishReason,
     model,
+    attempts,
     usage: {
       input: u?.promptTokenCount ?? 0,
       output: u?.candidatesTokenCount ?? 0,

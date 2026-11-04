@@ -29,3 +29,35 @@ export function parseTimecode(input: unknown): number | null {
   if (seconds >= 60 || (m[1] && minutes >= 60)) return null;
   return hours * 3600 + minutes * 60 + seconds;
 }
+
+/**
+ * The free quota resets at midnight Pacific, so calls are counted per Pacific calendar day
+ * (12:00 Tbilisi while the US is on standard time, 11:00 during US daylight time).
+ */
+export function pacificDate(ms: number = Date.now()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ms));
+}
+
+export type Block = { n: number; startS: number; endS: number };
+
+/** 10 s blocks over a cut; a last block shorter than 5 s merges into the one before it. */
+export function blocksFor(durationS: number, sizeS = 10, minLastS = 5): Block[] {
+  const blocks: Block[] = [];
+  const total = Math.max(0, durationS);
+  for (let start = 0, n = 1; start < total; start += sizeS, n++) {
+    blocks.push({ n, startS: start, endS: Math.min(total, start + sizeS) });
+  }
+  if (blocks.length >= 2) {
+    const last = blocks[blocks.length - 1];
+    if (last.endS - last.startS < minLastS) {
+      blocks.pop();
+      blocks[blocks.length - 1].endS = last.endS;
+    }
+  }
+  return blocks;
+}
