@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { budget } from "@/lib/ledger";
 import type { NormalizedReview } from "@/lib/review-output";
 import { mp4Duration } from "@/lib/mp4";
+import { blocksFor } from "@/lib/time";
 import { DATA_DIR } from "@/lib/uploads";
 import {
   cutLabel,
@@ -716,6 +717,93 @@ function printGroup(g: Group, scores: CutScore[], windowS: number, anchorS: numb
   console.log(`  cost: ${scores.length} call(s), ${tok} tokens${gen.length ? `, generate ${r1(gen.reduce((n, s) => n + (s.generateS ?? 0), 0))} s in total` : ""}`);
 }
 
+// ---- paired comparison of two groups (direction only, never a significance claim) ------------------
+
+type RunStats = { notes: number; sources: number; blocks: number; notesPerBlock: number; emptyBlockShare: number | null; boundary: number | null; shotStart: number | null; outOfBlock: number; generateS: number | null; output: number; thoughts: number; finish: string | null };
+
+function runStats(r: RunRecord): RunStats {
+  const blocks = blocksFor(r.durationS);
+  const perBlock = new Map<number, number>();
+  for (const n of r.normalized.notes) {
+    const b = n.block ?? blocks.find((x) => n.tStart >= x.startS && n.tStart < x.endS)?.n ?? blocks[blocks.length - 1]?.n ?? 1;
+    perBlock.set(b, (perBlock.get(b) ?? 0) + 1);
+  }
+  const d = r.normalized.diagnostics;
+  return {
+    notes: r.normalized.notes.length,
+    sources: r.normalized.notes.length + r.normalized.assessments.filter((a) => a.assessment === "not_fixed" && a.suggestedTStart !== null).length,
+    blocks: blocks.length,
+    notesPerBlock: blocks.length > 0 ? r.normalized.notes.length / blocks.length : 0,
+    emptyBlockShare: blocks.length > 0 ? blocks.filter((b) => !perBlock.has(b.n)).length / blocks.length : null,
+    boundary: d?.boundaryShare ?? null,
+    shotStart: d?.shotStartShare ?? null,
+    outOfBlock: d?.outOfBlock ?? 0,
+    generateS: r.generateS,
+    output: r.usage.output,
+    thoughts: r.usage.thoughts,
+    finish: r.finishReason,
+  };
+}
+
+function matchedMoments(r: RunRecord, info: CutInfo, labels: Map<string, { family: Family; kind: Kind }>, windowS: number, anchorS: number): { moments: number; matched: Set<number>; floor: number } {
+  const notes = labelled(info, labels);
+  const moments = anchoredMoments(notes, anchorS);
+  const sources = hitSourcesOf(r, info, labels);
+  const pairs = matchGreedy(sources, moments, windowS);
+  const d = r.durationS || info.durationS;
+  const floor = Math.max(floorShift(sources, moments, windowS, d), floorGrid(sources, moments, windowS, d));
+  return { moments: moments.length, matched: new Set(pairs.map((p) => p.moment)), floor };
+}
+
+function printCompare(a: Group, b: Group, infos: Map<string, CutInfo>, labels: Map<string, { family: Family; kind: Kind }>, windowS: number, anchorS: number): void {
+  const name = (g: Group) => `${g.label ?? g.promptVersion} (${g.promptVersion}, ${g.model}, run ${g.runIndex})`;
+  console.log(`\n=== paired: A = ${name(a)}  vs  B = ${name(b)}  (direction only)`);
+  console.log("  cut".padEnd(42) + "mom  A   B   both  A-only  B-only  | notesA notesB  /blockA /blockB  emptyA emptyB  bndA  bndB  shotB  genA  genB  outA  outB");
+  const tot = { moments: 0, a: 0, b: 0, both: 0, aOnly: 0, bOnly: 0, floorA: 0, floorB: 0, bWins: 0, cuts: 0 };
+  const cuts = [...new Set([...a.runs, ...b.runs].map((r) => r.cut))].sort();
+  const f = (x: number | null, pctMode = false) => (x === null ? "-" : pctMode ? `${Math.round(100 * x)}%` : r1(x));
+  for (const cut of cuts) {
+    const ra = a.runs.find((r) => r.cut === cut);
+    const rb = b.runs.find((r) => r.cut === cut);
+    const info = infos.get(cut);
+    if (!ra || !rb || !info) {
+      console.log(`  ${cut}`.padEnd(42) + "(only in one group)");
+      continue;
+    }
+    const ma = matchedMoments(ra, info, labels, windowS, anchorS);
+    const mb = matchedMoments(rb, info, labels, windowS, anchorS);
+    const both = [...ma.matched].filter((m) => mb.matched.has(m)).length;
+    const aOnly = ma.matched.size - both;
+    const bOnly = mb.matched.size - both;
+    tot.cuts += 1;
+    tot.moments += ma.moments;
+    tot.a += ma.matched.size;
+    tot.b += mb.matched.size;
+    tot.both += both;
+    tot.aOnly += aOnly;
+    tot.bOnly += bOnly;
+    tot.floorA += ma.floor * ma.moments;
+    tot.floorB += mb.floor * mb.moments;
+    if (mb.matched.size > ma.matched.size) tot.bWins += 1;
+    const sa = runStats(ra);
+    const sb = runStats(rb);
+    console.log(
+      `  ${cut}`.padEnd(42) +
+        `${String(ma.moments).padStart(3)}  ${String(ma.matched.size).padStart(2)}  ${String(mb.matched.size).padStart(2)}  ${String(both).padStart(4)}  ${String(aOnly).padStart(6)}  ${String(bOnly).padStart(6)}  | ` +
+        `${String(sa.notes).padStart(6)} ${String(sb.notes).padStart(6)}  ${r1(sa.notesPerBlock).padStart(7)} ${r1(sb.notesPerBlock).padStart(7)}  ${f(sa.emptyBlockShare, true).padStart(6)} ${f(sb.emptyBlockShare, true).padStart(6)}  ${f(sa.boundary, true).padStart(4)}  ${f(sb.boundary, true).padStart(4)}  ${f(sb.shotStart, true).padStart(5)}  ${f(sa.generateS).padStart(4)}  ${f(sb.generateS).padStart(4)}  ${String(sa.output).padStart(4)}  ${String(sb.output).padStart(4)}`,
+    );
+  }
+  const fa = tot.moments > 0 ? tot.floorA / tot.moments : 0;
+  const fb = tot.moments > 0 ? tot.floorB / tot.moments : 0;
+  const liftA = Math.round(100 * (tot.a / Math.max(1, tot.moments) - fa));
+  const liftB = Math.round(100 * (tot.b / Math.max(1, tot.moments) - fb));
+  console.log(
+    `  pooled: ${tot.moments} moments; A ${tot.a} (${pct(tot.a, tot.moments)}, floor ${pctN(fa)}, lift ${liftA}); B ${tot.b} (${pct(tot.b, tot.moments)}, floor ${pctN(fb)}, lift ${liftB}); both ${tot.both}, A only ${tot.aOnly}, B only ${tot.bOnly}; cuts where B covers more than A: ${tot.bWins} of ${tot.cuts}`,
+  );
+  const fin = (g: Group) => g.runs.map((r) => r.finishReason ?? "?").join(",");
+  console.log(`  finish reasons: A ${fin(a)}; B ${fin(b)}`);
+}
+
 // ---- the report tables for docs/accuracy.md -------------------------------------------------------
 
 function reportMarkdown(groups: Array<{ g: Group; scores: CutScore[] }>, windowS: number, anchorS: number): string {
@@ -1047,6 +1135,7 @@ function main(): void {
       "export-judgments": { type: "string" },
       sample: { type: "string" },
       budget: { type: "boolean", default: false },
+      compare: { type: "string", multiple: true },
     },
   });
   if (values.budget) {
@@ -1069,14 +1158,31 @@ function main(): void {
   const infos = cutInfos(pack);
   const labels = loadLabels(labelsDir);
   const labelsPresent = labels.size > 0;
+  const setFilter = values.set as EvalSet | undefined;
+  if (setFilter && !(setFilter in EVAL_SETS)) throw new Error("--set takes dev or test");
   if (!labelsPresent) console.log(`No labels at ${labelsDir}: families are off, every number below is time-only (not the pre-registered metric).`);
 
   let groups = groupRuns(runs.filter((r) => findCut(pack, r.cut)));
+  // --compare a --compare b, or --compare a b (the second lands in the positionals)
+  const compareSel = values.compare ? [...values.compare, ...positionals].slice(0, 2) : [];
+  if (compareSel.length === 2) {
+    // selector: <version or label>[@model][#runIndex]; the --model and --run-index flags are the defaults
+    const pick = (sel: string): Group => {
+      const m = /^([^@#]+)(?:@([^#]+))?(?:#(\d+))?$/.exec(sel);
+      if (!m) throw new Error(`bad selector ${sel}`);
+      const model = m[2] ?? values.model;
+      const run = m[3] ? Number(m[3]) : values["run-index"] ? Number(values["run-index"]) : 1;
+      const found = groups.filter((g) => (g.promptVersion === m[1] || g.label === m[1]) && (!model || g.model === model) && g.runIndex === run);
+      if (found.length !== 1) throw new Error(`selector ${sel} matches ${found.length} groups (${found.map((g) => g.key).join(", ") || "none"}); add @model`);
+      const g = found[0];
+      return { ...g, runs: g.runs.filter((r) => (setFilter ? setOf(r.cut) === setFilter : setOf(r.cut) === "dev" || setOf(r.cut) === "test")) };
+    };
+    printCompare(pick(compareSel[0]), pick(compareSel[1]), infos, labels, windowS, anchorS);
+    return;
+  }
   if (values.config) groups = groups.filter((g) => g.promptVersion === values.config || g.label === values.config);
   if (values.model) groups = groups.filter((g) => g.model === values.model);
   if (values["run-index"]) groups = groups.filter((g) => g.runIndex === Number(values["run-index"]));
-  const setFilter = values.set as EvalSet | undefined;
-  if (setFilter && !(setFilter in EVAL_SETS)) throw new Error("--set takes dev or test");
   const scored: Array<{ g: Group; scores: CutScore[] }> = [];
   for (const g of groups) {
     const runsInGroup = g.runs.filter((r) => (setFilter ? setOf(r.cut) === setFilter : setOf(r.cut) === "dev" || setOf(r.cut) === "test"));
@@ -1108,7 +1214,6 @@ function main(): void {
     writeFileSync(doc, text);
     console.log(`\nwrote the tables into ${doc}`);
   }
-  void positionals;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
