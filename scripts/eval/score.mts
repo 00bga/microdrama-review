@@ -359,6 +359,7 @@ type CutScore = {
   set: EvalSet | null;
   unlabelled: boolean;
   notes: number;
+  echoes: number;
   sources: number;
   strategistNotes: number;
   moments: number;
@@ -415,11 +416,29 @@ function labelled(cut: CutInfo, labels: Map<string, { family: Family; kind: Kind
   });
 }
 
+/** Notes the model wrote within ECHO_S of the new timecode of its own not_fixed verdict: the carried note restated. */
+export const ECHO_S = 2;
+
+export function echoedNoteIndexes(run: RunRecord): Set<number> {
+  const verdictTimes = run.normalized.assessments
+    .filter((a) => a.assessment === "not_fixed" && a.suggestedTStart !== null)
+    .map((a) => a.suggestedTStart as number);
+  const out = new Set<number>();
+  run.normalized.notes.forEach((n, i) => {
+    if (verdictTimes.some((t) => Math.abs(t - n.tStart) <= ECHO_S)) out.add(i);
+  });
+  return out;
+}
+
+export let KEEP_ECHOES = false;
+
 export function hitSourcesOf(run: RunRecord, cut: CutInfo, labels: Map<string, { family: Family; kind: Kind }>): HitSource[] {
   const out: HitSource[] = [];
-  for (const n of run.normalized.notes) {
+  const echoes = KEEP_ECHOES ? new Set<number>() : echoedNoteIndexes(run);
+  run.normalized.notes.forEach((n, i) => {
+    if (echoes.has(i)) return;
     out.push({ index: out.length, t: n.tStart, families: FAMILY_OF_CATEGORY[n.category] ?? null, kind: "note", category: n.category, ref: null });
-  }
+  });
   for (const a of run.normalized.assessments) {
     if (a.assessment !== "not_fixed" || a.suggestedTStart === null) continue;
     const prev = cut.previous?.notes[a.noteId - 1];
@@ -521,6 +540,7 @@ export function scoreRun(
     set: cut.set,
     unlabelled: unlabelledCut,
     notes: run.normalized.notes.length,
+    echoes: echoedNoteIndexes(run).size,
     sources: sources.length,
     strategistNotes: notes.length,
     moments: moments.length,
@@ -653,13 +673,13 @@ function printGroup(g: Group, scores: CutScore[], windowS: number, anchorS: numb
   const sets = [...new Set(scores.map((s) => s.set ?? "none"))].join("+");
   console.log(`\n=== ${g.model}  prompt ${g.promptVersion}${g.label ? ` (${g.label})` : ""}  run ${g.runIndex}  [${sets}]  window ${windowS} s, anchor ${anchorS} s${labelsPresent ? "" : "  (NO LABELS: time-only, families off)"}`);
   console.log(
-    "  cut".padEnd(42) + "notes  src  strat  mom  matched  cov   floor(F1/F2)  lift  time-only  note-rec  valid  gen s  boundary",
+    "  cut".padEnd(42) + "notes echo  src  strat  mom  matched  cov   floor(F1/F2)  lift  time-only  note-rec  valid  gen s  boundary",
   );
   for (const s of scores) {
     const floor = Math.max(s.floorShift, s.floorGrid);
     console.log(
       `  ${s.cut}${s.unlabelled ? " *" : ""}`.padEnd(42) +
-        `${String(s.notes).padStart(5)}  ${String(s.sources).padStart(3)}  ${String(s.strategistNotes).padStart(5)}  ${String(s.moments).padStart(3)}  ${String(s.matched).padStart(7)}  ` +
+        `${String(s.notes).padStart(5)} ${String(s.echoes).padStart(4)}  ${String(s.sources).padStart(3)}  ${String(s.strategistNotes).padStart(5)}  ${String(s.moments).padStart(3)}  ${String(s.matched).padStart(7)}  ` +
         `${pct(s.matched, s.moments).padStart(4)}  ${(pctN(s.floorShift) + "/" + pctN(s.floorGrid)).padStart(12)}  ${(s.moments > 0 ? `${Math.round(100 * (s.matched / s.moments - floor))}` : "n/a").padStart(4)}  ` +
         `${pct(s.timeOnly, s.moments).padStart(9)}  ${pct(s.noteHits, s.strategistNotes).padStart(8)}  ${(s.judged ? pct(s.valid ?? 0, s.judged) : "-").padStart(5)}  ` +
         `${(s.generateS === null ? "-" : r1(s.generateS)).padStart(5)}  ${(s.boundaryShare === null ? "-" : pctN(s.boundaryShare)).padStart(8)}`,
@@ -714,6 +734,8 @@ function printGroup(g: Group, scores: CutScore[], windowS: number, anchorS: numb
   if (hist) console.log(`  matched-pair offsets (AI minus strategist): ${hist}`);
   const gen = scores.filter((s) => s.generateS !== null);
   const tok = scores.reduce((n, s) => n + s.tokens.input + s.tokens.output + s.tokens.thoughts, 0);
+  const echoes = scores.reduce((n, s) => n + s.echoes, 0);
+  if (echoes > 0) console.log(`  echoed carried notes (within ${ECHO_S} s of a not_fixed new timecode, ${KEEP_ECHOES ? "kept as" : "dropped from"} hit sources): ${echoes}`);
   console.log(`  cost: ${scores.length} call(s), ${tok} tokens${gen.length ? `, generate ${r1(gen.reduce((n, s) => n + (s.generateS ?? 0), 0))} s in total` : ""}`);
 }
 
@@ -813,16 +835,16 @@ function reportMarkdown(groups: Array<{ g: Group; scores: CutScore[] }>, windowS
     const p = pool(scores);
     const sets = [...new Set(scores.map((s) => s.set ?? "none"))].join(" + ");
     lines.push(`### ${g.model}, prompt ${g.promptVersion}${g.label ? ` (${g.label})` : ""}, run ${g.runIndex}, ${sets}`, "");
-    lines.push("| Cut | AI notes | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |");
-    lines.push("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+    lines.push("| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |");
+    lines.push("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
     for (const s of scores) {
       const floor = Math.max(s.floorShift, s.floorGrid);
       lines.push(
-        `| ${s.cut}${s.unlabelled ? " (unlabelled)" : ""} | ${s.notes} | ${s.sources} | ${s.strategistNotes} | ${s.moments} | ${s.matched} | ${pct(s.matched, s.moments)} | ${pctN(s.floorShift)} / ${pctN(s.floorGrid)} | ${s.moments > 0 ? Math.round(100 * (s.matched / s.moments - floor)) : "n/a"} | ${pct(s.timeOnly, s.moments)} | ${pct(s.noteHits, s.strategistNotes)} | ${s.judged ? pct(s.valid ?? 0, s.judged) : "n/a"} | ${s.generateS === null ? "n/a" : r1(s.generateS)} |`,
+        `| ${s.cut}${s.unlabelled ? " (unlabelled)" : ""} | ${s.notes} | ${s.echoes} | ${s.sources} | ${s.strategistNotes} | ${s.moments} | ${s.matched} | ${pct(s.matched, s.moments)} | ${pctN(s.floorShift)} / ${pctN(s.floorGrid)} | ${s.moments > 0 ? Math.round(100 * (s.matched / s.moments - floor)) : "n/a"} | ${pct(s.timeOnly, s.moments)} | ${pct(s.noteHits, s.strategistNotes)} | ${s.judged ? pct(s.valid ?? 0, s.judged) : "n/a"} | ${s.generateS === null ? "n/a" : r1(s.generateS)} |`,
       );
     }
     lines.push(
-      `| Pooled (micro) | ${scores.reduce((n, s) => n + s.notes, 0)} | ${scores.reduce((n, s) => n + s.sources, 0)} | ${p.strategistNotes} | ${p.moments} | ${p.matched} | ${pctN(p.micro)} (95% ${Math.round(p.wilson.lo)} to ${Math.round(p.wilson.hi)}) | ${pctN(p.floorShift)} / ${pctN(p.floorGrid)} | ${Math.round(100 * p.lift)} | ${pct(p.timeOnly, p.moments)} | ${pct(p.noteHits, p.strategistNotes)} | ${p.validity ? pct(p.validity.k, p.validity.n) : "n/a"} | |`,
+      `| Pooled (micro) | ${scores.reduce((n, s) => n + s.notes, 0)} | ${scores.reduce((n, s) => n + s.echoes, 0)} | ${scores.reduce((n, s) => n + s.sources, 0)} | ${p.strategistNotes} | ${p.moments} | ${p.matched} | ${pctN(p.micro)} (95% ${Math.round(p.wilson.lo)} to ${Math.round(p.wilson.hi)}) | ${pctN(p.floorShift)} / ${pctN(p.floorGrid)} | ${Math.round(100 * p.lift)} | ${pct(p.timeOnly, p.moments)} | ${pct(p.noteHits, p.strategistNotes)} | ${p.validity ? pct(p.validity.k, p.validity.n) : "n/a"} | |`,
     );
     lines.push("", `Macro (mean of per-cut coverage): ${pctN(p.macro)}. Observable moments: ${pct(p.observable.matched, p.observable.moments)}.`);
     if (p.confirmed) {
@@ -1136,6 +1158,7 @@ function main(): void {
       sample: { type: "string" },
       budget: { type: "boolean", default: false },
       compare: { type: "string", multiple: true },
+      "keep-echoes": { type: "boolean", default: false },
     },
   });
   if (values.budget) {
@@ -1148,6 +1171,7 @@ function main(): void {
   const labelsDir = path.resolve(values.labels ?? "eval/labels");
   const judgmentsDir = path.resolve(values["judgments-dir"] ?? "eval/judgments");
   const windowS = Number(values.window ?? "6");
+  KEEP_ECHOES = values["keep-echoes"] === true;
   const anchorS = Number(values.anchor ?? "4");
   const runs = loadRuns();
   if (values.scaffold) return scaffold(loadPackage(dir), dir, runs);

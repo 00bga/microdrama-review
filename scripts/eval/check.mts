@@ -7,6 +7,7 @@ import { computeDiagnostics, normalizeReview } from "@/lib/review-output";
 import {
   anchoredMoments,
   bootstrapCuts,
+  echoedNoteIndexes,
   floorGrid,
   floorShift,
   matchGreedy,
@@ -166,6 +167,23 @@ check("proposeFamily: keywords route to a family, hook and ending need the right
   assert.equal(proposeFamily("whose camera is this", 30, 100), "clarity");
   assert.equal(proposeFamily("great opening shot, keep it", 2, 100), "hook");
   assert.equal(proposeFamily("great opening shot, keep it", 50, 100), "other");
+});
+
+check("echoed notes: a note within 2 s of a not_fixed verdict new timecode is an echo", () => {
+  const note = (tStart: number) => ({ tStart, tEnd: null, category: "pacing" as const, severity: "low" as const, title: "t", body: "b", evidence: null, castMemberId: null, block: null });
+  const run = {
+    file: "", savedAt: "", cut: "", set: null, model: "", promptVersion: "", runIndex: 1, label: null, config: null, durationS: 100, generateS: null,
+    usage: { input: 0, output: 0, thoughts: 0 }, finishReason: null, openNotes: [],
+    normalized: {
+      shotList: [], notes: [note(10), note(31), note(50)], castChecks: [], hook: null, cliffhanger: null, summary: "", droppedNotes: 0, droppedAssessments: 0,
+      diagnostics: { boundaryShare: null, shotStartShare: null, outOfBlock: 0, blocksListed: 0, shotsListed: 0 },
+      assessments: [
+        { noteId: 1, assessment: "not_fixed" as const, rationale: "", suggestedTStart: 30, suggestedTEnd: null },
+        { noteId: 2, assessment: "fixed" as const, rationale: "", suggestedTStart: 50, suggestedTEnd: null },
+      ],
+    },
+  };
+  assert.deepEqual([...echoedNoteIndexes(run)], [1]);
 });
 
 console.log(`\n${passed} checks passed`);
