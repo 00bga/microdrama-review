@@ -118,6 +118,8 @@ The four round-1 3.8 Flash dev runs, rescored with the labels: 8 of 58 moments m
 
 (Appended after the pre-registration, each marked with what it adds.)
 
+- Added after `prereg-1`, 2026-11-04, verified quota (amends P16): AI Studio's rate-limit view for this key, 28-day peak usage, shows 3.8 Flash and 3.6 Flash at 20 requests per day, 5 per minute and 250K input tokens per minute each, and Flash-Lite at 500 requests per day, 15 per minute and 250K tokens per minute. The Oct 22 peaks read 22 of 20 on 3.8 Flash and 21 of 20 on 3.6 Flash, which confirms that failed calls count against the day. P16 understated the Flash-Lite quota; the ledger reserve for Flash-Lite is raised to 100 calls per Pacific day, the Flash reserves stay at 15. Nothing in the protocol changes.
+
 ## Method in full
 
 The scorer (`scripts/eval/score.mts`) replays every saved run under `data/eval/` with zero calls. For each run it builds the moments from the package's `notes.json` and the label file, the hit sources from the run's normalized notes and verdicts, the greedy matching, the two floors, the sensitivity grid, the miss list by family and kind, the verdict evidence rate, the signed offsets of matched pairs and the arm-AB diagnostics (the share of timecodes within 0.5 s of a 10 s boundary, the share at a listed shot start, notes outside their block). With a judgment file for the run's group it adds confirmed coverage, validity and verdict agreement. `--report` regenerates the tables below.

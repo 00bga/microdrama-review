@@ -13,7 +13,7 @@
 // A run is keyed on (cut, prompt version, model, run index). A cut that already has a completed run
 // for that key is refused unless --resume (skip it) or --force (run it again, logged) is passed. Every
 // attempt goes into data/eval/ledger.jsonl; a sweep that would pass the reserve of 15 calls per model
-// per Pacific day does not start, and the sweep stops at the first failure and prints the resume command.
+// per Pacific day (100 for Flash-Lite, whose quota is 500) does not start, and the sweep stops at the first failure and prints the resume command.
 // Uploads are cached in <video>.gemini.json next to the cut.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -32,7 +32,7 @@ import {
   type ThinkingLevel,
   type VideoOptions,
 } from "@/lib/gemini";
-import { appendLedger, budget, callsOn, RESERVE_PER_DAY } from "@/lib/ledger";
+import { appendLedger, budget, callsOn, reserveFor } from "@/lib/ledger";
 import { mp4Duration } from "@/lib/mp4";
 import { estimateCost, fmtUsd } from "@/lib/pricing";
 import {
@@ -200,9 +200,9 @@ if (pending.length === 0) {
   process.exit(0);
 }
 const usedToday = callsOn(requestedModel);
-if (usedToday + pending.length > RESERVE_PER_DAY) {
+if (usedToday + pending.length > reserveFor(requestedModel)) {
   console.error(
-    `Refusing to start: ${requestedModel} has ${usedToday} call(s) logged on ${pacificDate()} (Pacific) and this sweep needs ${pending.length}; the reserve is ${RESERVE_PER_DAY} per model per day.`,
+    `Refusing to start: ${requestedModel} has ${usedToday} call(s) logged on ${pacificDate()} (Pacific) and this sweep needs ${pending.length}; the reserve is ${reserveFor(requestedModel)} for this model per day.`,
   );
   for (const b of budget()) console.error(`  ${b.model}: ${b.used} used, ${b.left} left`);
   process.exit(1);

@@ -11,6 +11,14 @@ export const LEDGER_PATH = path.join(DATA_DIR, "eval", "ledger.jsonl");
 /** Calls per model per Pacific day that a sweep may reach; the rest is the reserve for the app. */
 export const RESERVE_PER_DAY = 15;
 
+/**
+ * The Flash models have 20 requests per day on the free tier (AI Studio rate-limit view, read on
+ * 2026-11-04); Flash-Lite has 500, so its sweeps may go much further before the app is at risk.
+ */
+export function reserveFor(model: string): number {
+  return /lite/i.test(model) ? 100 : RESERVE_PER_DAY;
+}
+
 export type AttemptStatus = "ok" | "overloaded" | "quota" | "timeout" | "rejected" | "error";
 
 export type LedgerEntry = {
@@ -55,5 +63,5 @@ export function budget(day: string = pacificDate()): Array<{ model: string; used
   }
   return [...used.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([model, n]) => ({ model, used: n, left: Math.max(0, RESERVE_PER_DAY - n) }));
+    .map(([model, n]) => ({ model, used: n, left: Math.max(0, reserveFor(model) - n) }));
 }
