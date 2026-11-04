@@ -578,7 +578,7 @@ function groupRuns(runs: RunRecord[]): Group[] {
   for (const r of runs) {
     const key = groupKey(r.promptVersion, r.model, r.runIndex);
     const g = map.get(key) ?? { key, promptVersion: r.promptVersion, model: r.model, runIndex: r.runIndex, label: r.label, runs: [] };
-    if (!g.label && r.label) g.label = r.label;
+    if (r.label && !(g.label ?? "").split(", ").includes(r.label)) g.label = g.label ? g.label + ", " + r.label : r.label;
     g.runs.push(r);
     map.set(key, g);
   }
@@ -1196,7 +1196,7 @@ function main(): void {
       if (!m) throw new Error(`bad selector ${sel}`);
       const model = m[2] ?? values.model;
       const run = m[3] ? Number(m[3]) : values["run-index"] ? Number(values["run-index"]) : 1;
-      const found = groups.filter((g) => (g.promptVersion === m[1] || g.label === m[1]) && (!model || g.model === model) && g.runIndex === run);
+      const found = groups.filter((g) => (g.promptVersion === m[1] || g.runs.some((r) => r.label === m[1])) && (!model || g.model === model) && g.runIndex === run);
       if (found.length !== 1) throw new Error(`selector ${sel} matches ${found.length} groups (${found.map((g) => g.key).join(", ") || "none"}); add @model`);
       const g = found[0];
       return { ...g, runs: g.runs.filter((r) => (setFilter ? setOf(r.cut) === setFilter : setOf(r.cut) === "dev" || setOf(r.cut) === "test")) };
@@ -1204,7 +1204,7 @@ function main(): void {
     printCompare(pick(compareSel[0]), pick(compareSel[1]), infos, labels, windowS, anchorS);
     return;
   }
-  if (values.config) groups = groups.filter((g) => g.promptVersion === values.config || g.label === values.config);
+  if (values.config) groups = groups.filter((g) => g.promptVersion === values.config || g.runs.some((r) => r.label === values.config));
   if (values.model) groups = groups.filter((g) => g.model === values.model);
   if (values["run-index"]) groups = groups.filter((g) => g.runIndex === Number(values["run-index"]));
   const scored: Array<{ g: Group; scores: CutScore[] }> = [];
