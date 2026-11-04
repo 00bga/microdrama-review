@@ -27,7 +27,7 @@ The strategists' timecoded notes on the example package are the ground truth. Th
 
 ### P4. Moments
 
-Walk a cut's strategist notes in time order; a note joins the open moment if it is within 4 s of that moment's FIRST note, otherwise it opens a new moment. Time only, no labels. A moment's family set is the union of its notes' hand-labelled topic families. A moment is observable if any of its notes is labelled observable or unclear; a moment whose notes are all direction or needs-context forms the ceiling slice (reported, never the headline). Under this rule the dev set has 58 moments and the held-out set about 38; The Haunted Crew E01 v2 alone has 17.
+Walk a cut's strategist notes in time order; a note joins the open moment if it is within 4 s of that moment's FIRST note, otherwise it opens a new moment. Time only, no labels. A moment's family set is the union of its notes' hand-labelled topic families. A moment is observable if any of its notes is labelled observable or unclear; a moment whose notes are all direction or needs-context forms the ceiling slice (reported, never the headline). Under this rule the dev set has 58 moments (37 observable, 21 in the ceiling slice) and the held-out set 38 (32 observable, 6 in the ceiling slice); The Haunted Crew E01 v2 alone has 17.
 
 ### P5. Hit sources
 
@@ -91,8 +91,8 @@ The frozen `PROMPT_VERSION` is pushed in a second commit before the run. Held-ou
 
 ### P14. Labels
 
-- Strategist labels: one entry per note with cut, time, topic family and kind. Families: clarity, story-logic, pacing, continuity, delivery, sound, character, emotion, hook, ending, other. Kind rule: observable = a first-time viewer given this cut, the bible and the cast could point at a frame or sound and agree it is a problem; direction = a taste or story preference with no defect on screen; needs-context = requires earlier episodes or production intent; unclear = cannot decide. A keyword scaffold proposes a family and marks it so the correction rate can be stated; it never proposes a kind. The labels were written before any scored round-2 call.
-- The label file lives outside the repository (`eval/labels/strategist-labels.json`, git-ignored) and carries no note text; it travels only in the emailed bundle. Its SHA-256 is recorded here: `<label hash: filled by npm run eval:score -- --export-labels>`. Later corrections go in a separate corrections file and the headline is reported with and without them.
+- Strategist labels: one entry per note with cut, time, topic family and kind. Families: clarity, story-logic, pacing, continuity, delivery, sound, character, emotion, hook, ending, other. Kind rule: observable = a first-time viewer given this cut, the bible and the cast could point at a frame or sound and agree it is a problem; direction = a taste or story preference with no defect on screen; needs-context = requires earlier episodes or production intent; unclear = cannot decide. How they were made: a keyword scaffold proposed a family per note; families and kinds were then assigned from the note text alone, in one pass, without watching the cuts and without a second person checking them, before any scored round-2 call. 38 of the 138 keyword proposals were changed in that pass (28%). A kind the text alone could not decide is unclear (5 notes). Because no one watched the cuts to label them, the observable slice is a text-based estimate; the headline does not depend on kinds.
+- The label file lives outside the repository (`eval/labels/strategist-labels.json`, git-ignored) and carries no note text; it travels only in the emailed bundle. Its SHA-256 is recorded here: `b2ab932a53aaff3b7b7e2864510560fc09ffa8da76d912b117d05d0ea71b0fbe` (138 labels: 86 dev, 47 held-out, 5 on the carried-source cut Everyone But Her E12 v1). Later corrections go in a separate corrections file and the headline is reported with and without them.
 - Judgment files (validity, pair labels, verdict labels, guard samples) are separate from the strategist labels, also outside the repository, also in the bundle.
 
 ### P15. Known app-eval differences
@@ -103,7 +103,11 @@ The app sends carried notes with their real category and severity; the evaluatio
 
 About 20 generateContent calls per Pacific day per Flash model on the free tier (3.7 and 3.8 Flash share one quota); failed calls are assumed to count; the quota resets at midnight Pacific, 12:00 Tbilisi while the US is on standard time. These figures were observed in round 1 and are unverified against the provider's published table; the ledger stops every sweep at 15 calls per model per reset.
 
-### P17. Shakedown spike, before this commit (unscored, Flash-Lite, Bound E04 v3, 4 calls)
+### P17. The round-1 runs under this rule (zero calls, before this commit)
+
+The four round-1 3.8 Flash dev runs, rescored with the labels: 8 of 58 moments matched (14%, Wilson 7 to 25) against a floor of 13% (shift 13%, grid 10%), lift 0 points; time-only 41%; note-level recall 12%. Round 1 was at chance under this rule, which is the reason the definition changed.
+
+### P18. Shakedown spike, before this commit (unscored, Flash-Lite, Bound E04 v3, 4 calls)
 
 - The worst-case request shape (13 cast names in the enums, 24 open-note aliases, arm AB with the shot list, static media processing set explicitly) was accepted: 41 s generate, finishReason STOP, 13 blocks and 89 shot lines listed, 5 notes, 24 verdicts (the 12 synthetic aliases all came back `unclear`). No option was rejected.
 - Clipping through `videoMetadata` (40 s to 85 s at 2 fps) was accepted: every note and every new timecode fell inside the span and timecodes stayed absolute, but the model treated the end of the span as the end of the episode (a cliffhanger note at 83 s). Input tokens 21054 against 25696 for the whole cut at the default rate, which is consistent with about 15 thousand tokens of video per cut at 1 frame per second. A windowed design would have to tell the model where the window sits in the episode; see docs/decisions.md D14.
