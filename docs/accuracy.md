@@ -103,6 +103,13 @@ The app sends carried notes with their real category and severity; the evaluatio
 
 About 20 generateContent calls per Pacific day per Flash model on the free tier (3.7 and 3.8 Flash share one quota); failed calls are assumed to count; the quota resets at midnight Pacific, 12:00 Tbilisi while the US is on standard time. These figures were observed in round 1 and are unverified against the provider's published table; the ledger stops every sweep at 15 calls per model per reset.
 
+### P17. Shakedown spike, before this commit (unscored, Flash-Lite, Bound E04 v3, 4 calls)
+
+- The worst-case request shape (13 cast names in the enums, 24 open-note aliases, arm AB with the shot list, static media processing set explicitly) was accepted: 41 s generate, finishReason STOP, 13 blocks and 89 shot lines listed, 5 notes, 24 verdicts (the 12 synthetic aliases all came back `unclear`). No option was rejected.
+- Clipping through `videoMetadata` (40 s to 85 s at 2 fps) was accepted: every note and every new timecode fell inside the span and timecodes stayed absolute, but the model treated the end of the span as the end of the episode (a cliffhanger note at 83 s). Input tokens 21054 against 25696 for the whole cut at the default rate, which is consistent with about 15 thousand tokens of video per cut at 1 frame per second. A windowed design would have to tell the model where the window sits in the episode; see docs/decisions.md D14.
+- Per-part media resolution "medium" on the video part gave exactly the input token count of the default request (25696 in both). As sent, the medium resolution arm is a null arm and is dropped from the exploratory arms unless the request-level setting behaves differently; that is a zero-cost check to run on Flash-Lite before any resolution arm is reported.
+- On this cut every arm-AB note sat at a listed shot start (shot-start share 100%, boundary share 20%, one note outside its block). This is the diagnostic that step 2 reads on the dev set before the schema can be kept.
+
 ## Later additions
 
 (Appended after the pre-registration, each marked with what it adds.)
