@@ -61,3 +61,21 @@ export function blocksFor(durationS: number, sizeS = 10, minLastS = 5): Block[] 
   }
   return blocks;
 }
+
+export type Span = { startS: number; endS: number };
+
+/**
+ * Windows of sizeS seconds with overlapS seconds of overlap, from 0 to the end of the cut; the last
+ * window is cut at the end. One whole-cut call plus these gives 1 + ceil((D - overlap) / (size - overlap)) calls.
+ */
+export function windowSpans(durationS: number, sizeS = 40, overlapS = 5): Span[] {
+  const out: Span[] = [];
+  const total = Math.max(0, durationS);
+  const step = Math.max(1, sizeS - overlapS);
+  for (let start = 0; ; start += step) {
+    const end = Math.min(total, start + sizeS);
+    out.push({ startS: start, endS: end });
+    if (end >= total) break;
+  }
+  return out;
+}

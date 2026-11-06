@@ -60,9 +60,19 @@ const castCheckSchema = z.object({
   evidence: z.string().trim().max(1000).default(""),
 });
 
+/** Arm AC: a shot with a problem slot the model fills or leaves empty. */
+const shotSlotSchema = z.object({
+  start: z.union([z.string(), z.number()]),
+  shot: z.string().default(""),
+  problem: z.string().default(""),
+  problemAt: z.union([z.string(), z.number()]).optional(),
+  category: z.string().optional(),
+  severity: z.string().optional(),
+});
+
 const shotBlockSchema = z.object({
   block: z.number().int(),
-  shots: z.array(z.string()).default([]),
+  shots: z.array(z.union([z.string(), shotSlotSchema])).default([]),
 });
 
 const outputSchema = z.object({
@@ -124,8 +134,22 @@ export type NormalizedReview = {
   droppedAssessments: number;
   /** notes the model wrote at the new timecode of its own not_fixed verdict: the carried note restated, dropped */
   droppedEchoes: number;
+  /** arm AC: shot slots the model filled with a problem */
+  slotsFilled: number;
+  /** arm AC: filled slots that became notes (a slot within 2 s of a note of the same category is a repeat and is skipped) */
+  shotNotes: number;
   diagnostics: Diagnostics;
 };
+
+/** A filled slot this close to a note of the same category repeats it. */
+const SLOT_DEDUPE_S = 2;
+
+/** The first sentence of a slot's problem, cut to eight words, as the note title. */
+function slotTitle(problem: string): string {
+  const first = problem.split(/[.;:!?]/)[0] ?? problem;
+  const words = first.trim().split(/\s+/).filter(Boolean);
+  return (words.length > 8 ? words.slice(0, 8).join(" ") : words.join(" ")) || "Shot problem";
+}
 
 /** A new note this close to a not_fixed verdict's new timecode restates the carried note instead of adding one. */
 export const ECHO_WINDOW_S = 2;
@@ -199,13 +223,27 @@ export function normalizeReview(raw: unknown, ctx: NormalizeContext): Normalized
     droppedNotes: 0,
     droppedAssessments: 0,
     droppedEchoes: 0,
+    slotsFilled: 0,
+    shotNotes: 0,
     diagnostics: { boundaryShare: null, shotStartShare: null, outOfBlock: 0, blocksListed: 0, shotsListed: 0 },
   };
 
+  // Shot lines as text; arm AC slots are flattened to "MM:SS shot" and their problems kept for lifting.
+  const slots: Array<{ block: number; line: string; slot: z.infer<typeof shotSlotSchema> }> = [];
   for (const item of top.shotList ?? []) {
     const parsed = shotBlockSchema.safeParse(item);
     if (!parsed.success) continue;
-    result.shotList.push({ block: parsed.data.block, shots: parsed.data.shots.map((s) => stripDashes(s)) });
+    const lines: string[] = [];
+    for (const shot of parsed.data.shots) {
+      if (typeof shot === "string") {
+        lines.push(stripDashes(shot));
+        continue;
+      }
+      const line = stripDashes(`${String(shot.start).trim()} ${shot.shot}`);
+      lines.push(line);
+      if (shot.problem.trim()) slots.push({ block: parsed.data.block, line, slot: shot });
+    }
+    result.shotList.push({ block: parsed.data.block, shots: lines });
   }
 
   for (const item of top.notes.slice(0, MAX_NOTES)) {
@@ -229,6 +267,36 @@ export function normalizeReview(raw: unknown, ctx: NormalizeContext): Normalized
     });
   }
   result.droppedNotes += Math.max(0, top.notes.length - MAX_NOTES);
+
+  // Arm AC: a filled slot becomes a note at the problem's own second (or the shot start), unless a
+  // note of the same category already sits within SLOT_DEDUPE_S of it.
+  result.slotsFilled = slots.length;
+  for (const { block, line, slot } of slots) {
+    const category = (AI_NOTE_CATEGORIES as readonly string[]).includes(slot.category ?? "") ? (slot.category as NoteCategory) : null;
+    const tStart = anchor(slot.problemAt ?? slot.start, ctx.durationS) ?? anchor(slot.start, ctx.durationS);
+    if (category === null || tStart === null) {
+      result.droppedNotes += 1;
+      continue;
+    }
+    if (result.notes.some((n) => n.category === category && Math.abs(n.tStart - tStart) <= SLOT_DEDUPE_S)) continue;
+    if (result.notes.length >= MAX_NOTES) {
+      result.droppedNotes += 1;
+      continue;
+    }
+    const problem = stripDashes(slot.problem);
+    result.notes.push({
+      tStart,
+      tEnd: null,
+      category,
+      severity: (SEVERITIES as readonly string[]).includes(slot.severity ?? "") ? (slot.severity as Severity) : "medium",
+      title: slotTitle(problem),
+      body: problem,
+      evidence: line,
+      castMemberId: null,
+      block,
+    });
+    result.shotNotes += 1;
+  }
 
   for (const item of top.previousNoteAssessments ?? []) {
     const parsed = assessmentSchema.safeParse(item);

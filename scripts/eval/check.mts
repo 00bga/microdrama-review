@@ -2,7 +2,7 @@
 //
 //   npm run eval:check
 import assert from "node:assert/strict";
-import { blocksFor } from "@/lib/time";
+import { blocksFor, windowSpans } from "@/lib/time";
 import { computeDiagnostics, normalizeReview } from "@/lib/review-output";
 import {
   anchoredMoments,
@@ -175,7 +175,7 @@ check("echoed notes: a note within 2 s of a not_fixed verdict new timecode is an
     file: "", savedAt: "", cut: "", set: null, model: "", promptVersion: "", runIndex: 1, label: null, config: null, durationS: 100, generateS: null,
     usage: { input: 0, output: 0, thoughts: 0 }, finishReason: null, openNotes: [],
     normalized: {
-      shotList: [], notes: [note(10), note(31), note(50)], castChecks: [], hook: null, cliffhanger: null, summary: "", droppedNotes: 0, droppedAssessments: 0, droppedEchoes: 0,
+      shotList: [], notes: [note(10), note(31), note(50)], castChecks: [], hook: null, cliffhanger: null, summary: "", droppedNotes: 0, droppedAssessments: 0, droppedEchoes: 0, slotsFilled: 0, shotNotes: 0,
       diagnostics: { boundaryShare: null, shotStartShare: null, outOfBlock: 0, blocksListed: 0, shotsListed: 0 },
       assessments: [
         { noteId: 1, assessment: "not_fixed" as const, rationale: "", suggestedTStart: 30, suggestedTEnd: null },
@@ -204,6 +204,44 @@ check("normalizeReview: a note within 2 s of a not_fixed verdict new timecode is
   const r = normalizeReview(raw, { durationS: 100, castByName: new Map(), openByAlias: new Map([["P1", 1], ["P2", 2]]) });
   assert.equal(r.droppedEchoes, 1);
   assert.deepEqual(r.notes.map((n) => n.tStart), [10, 50]);
+});
+
+check("normalizeReview: arm AC shot slots become notes at the problem second, repeats within 2 s skipped", () => {
+  const raw = {
+    shotList: [
+      {
+        block: 1,
+        shots: [
+          { start: "00:00", shot: "kitchen, her camera, she types", problem: "", problemAt: "", category: "pacing", severity: "low" },
+          { start: "00:04", shot: "hallway wide", problem: "The hallway wide holds. Cut on her look.", problemAt: "00:06", category: "pacing", severity: "medium" },
+          { start: "00:08", shot: "insert of the letter", problem: "The letter cannot be read in time.", category: "clarity", severity: "high" },
+          { start: "00:09", shot: "repeat", problem: "Repeat of the pacing note", problemAt: "00:07", category: "pacing", severity: "low" },
+        ],
+      },
+    ],
+    notes: [{ timecode: "00:20", category: "continuity", severity: "low", title: "a", body: "b", evidence: "e", block: 3 }],
+    hookCheck: { verdict: "strong", reason: "r" },
+    cliffhangerCheck: { verdict: "strong", reason: "r" },
+    summary: "s",
+  };
+  const r = normalizeReview(raw, { durationS: 30, castByName: new Map(), openByAlias: new Map() });
+  assert.equal(r.slotsFilled, 3);
+  assert.equal(r.shotNotes, 2);
+  assert.deepEqual(r.notes.map((n) => [n.tStart, n.category, n.block]), [[20, "continuity", 3], [6, "pacing", 1], [8, "clarity", 1]]);
+  assert.equal(r.notes[1].title, "The hallway wide holds");
+  assert.equal(r.notes[1].evidence, "00:04 hallway wide");
+  assert.equal(r.shotList[0].shots[1], "00:04 hallway wide");
+  assert.equal(r.diagnostics.shotsListed, 4);
+});
+
+check("windowSpans: 40 s windows with 5 s overlap, the last cut at the end; 87 s gives 3, 210 s gives 6", () => {
+  assert.deepEqual(windowSpans(87), [
+    { startS: 0, endS: 40 },
+    { startS: 35, endS: 75 },
+    { startS: 70, endS: 87 },
+  ]);
+  assert.equal(windowSpans(210).length, 6);
+  assert.deepEqual(windowSpans(30), [{ startS: 0, endS: 30 }]);
 });
 
 console.log(`\n${passed} checks passed`);

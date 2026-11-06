@@ -1,6 +1,7 @@
 // The review prompt: rubric, rules, response schema and request assembly, in two arms.
 // Arm A is the text rubric with the flat notes schema; arm AB adds a shot list per block that
-// the model fills before it writes notes. Every style example below is invented for this file;
+// the model fills before it writes notes; arm AC turns every listed shot into a slot the model
+// fills with a problem or leaves empty. Every style example below is invented for this file;
 // none paraphrases a note from any review package (scripts/eval/overlap-scan.mts checks that).
 import { createHash } from "node:crypto";
 import { MediaProcessing, PartMediaResolutionLevel, type Content, type Part } from "@google/genai";
@@ -14,8 +15,8 @@ import {
 import type { Resolution, ThinkingLevel, VideoOptions } from "@/lib/gemini";
 import { blocksFor, fmtTime } from "@/lib/time";
 
-/** P = the round-1 text with its examples purged (the baseline), A = the round-2 text, AB = A plus the shot list. */
-export const ARMS = ["P", "A", "AB"] as const;
+/** P = the round-1 text with its examples purged (the baseline), A = the round-2 text, AB = A plus the shot list, AC = A plus a problem slot per shot. */
+export const ARMS = ["P", "A", "AB", "AC"] as const;
 export type Arm = (typeof ARMS)[number];
 
 /** The invented style examples, shared by every arm. */
@@ -90,6 +91,9 @@ ${EXAMPLES}`;
 const SHOT_WALK = `
 Method: before writing any note, list the shots of every block in shotList: for each block, up to five shot lines of at most twelve words each, in the form "MM:SS where, whose camera, what happens, line spoken". Then write the notes, each with the number of the block it sits in. The timecode of a note is the exact second the problem is first visible or audible: not the block start, and not the shot start unless the problem begins there.`;
 
+const SHOT_SLOTS = `
+Method: before writing any note, list the shots of every block in shotList. Each shot is an object: start (MM:SS), shot (where, whose camera, what happens, line spoken; at most twelve words), and the slot for its problem: the one thing a first-time viewer stumbles on in this shot, written as a blunt note of one or two sentences in problem, with problemAt (MM:SS, the exact second it is first visible or audible), category and severity. Decide for every shot. A rough cut has a stumble in most shots, so look for it before you leave a slot empty, and leave problem empty only when the shot is clean. Then use notes only for problems that span more than one shot (a timeline jump, a repeated beat, a run of shots that loses the viewer), each with the number of its block, and never repeat a slot's problem there.`;
+
 const RULES = `
 Rules:
 - Fill hookCheck and cliffhangerCheck, each with a verdict (strong or weak) and a reason. Write a hook note only when the hook verdict is weak, anchored inside 00:00 to 00:10. Write a cliffhanger note only when that verdict is weak, anchored inside the last 15 seconds.
@@ -103,7 +107,9 @@ Rules:
 
 export function buildSystemInstruction(arm: Arm): string {
   if (arm === "P") return LEGACY_RUBRIC;
-  return arm === "AB" ? `${RUBRIC}\n${SHOT_WALK}\n${RULES}` : `${RUBRIC}\n${RULES}`;
+  if (arm === "AB") return `${RUBRIC}\n${SHOT_WALK}\n${RULES}`;
+  if (arm === "AC") return `${RUBRIC}\n${SHOT_SLOTS}\n${RULES}`;
+  return `${RUBRIC}\n${RULES}`;
 }
 
 /** The arm A text, for callers that do not pick an arm. */
@@ -170,30 +176,43 @@ export function buildResponseSchema(castNames: string[], openAliases: string[], 
     body: { type: "string", description: "At most two sentences: observation, why it hurts, the fix" },
     evidence: { type: "string", description: "One short clause: what you saw or heard, with the timecode" },
   };
-  if (arm === "AB") noteProperties.block = { type: "integer", description: "The block the timecode sits in" };
+  const walks = arm === "AB" || arm === "AC";
+  if (walks) noteProperties.block = { type: "integer", description: "The block the timecode sits in" };
   if (castNames.length > 0) {
     noteProperties.castMember = { type: "string", enum: castNames };
   }
   const noteRequired = ["timecode", "category", "severity", "title", "body", "evidence"];
-  if (arm === "AB") noteRequired.push("block");
+  if (walks) noteRequired.push("block");
 
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
 
-  if (arm === "AB") {
+  if (walks) {
+    const shotItem =
+      arm === "AC"
+        ? {
+            type: "object",
+            properties: {
+              start: { type: "string", description: "MM:SS where the shot begins" },
+              shot: { type: "string", description: "where, whose camera, what happens, line spoken; at most twelve words" },
+              problem: { type: "string", description: "One or two blunt sentences, or empty when the shot is clean" },
+              problemAt: { type: "string", description: "MM:SS, the exact second the problem is first visible or audible" },
+              category: { type: "string", enum: [...AI_NOTE_CATEGORIES] },
+              severity: { type: "string", enum: [...SEVERITIES] },
+            },
+            required: ["start", "shot", "problem"],
+          }
+        : {
+            type: "string",
+            description: "MM:SS where, whose camera, what happens, line spoken; at most twelve words",
+          };
     properties.shotList = {
       type: "array",
       items: {
         type: "object",
         properties: {
           block: { type: "integer" },
-          shots: {
-            type: "array",
-            items: {
-              type: "string",
-              description: "MM:SS where, whose camera, what happens, line spoken; at most twelve words",
-            },
-          },
+          shots: { type: "array", items: shotItem },
         },
         required: ["block", "shots"],
       },
@@ -272,11 +291,15 @@ export function buildContextText(input: ReviewInput, arm: Arm = "A", clip?: Vide
       `Only the span ${fmtTime(clip.startS)} to ${fmtTime(clip.endS)} of the cut is attached; timecodes still refer to the full cut.`,
     );
   }
-  if (arm === "AB") {
+  if (arm === "AB" || arm === "AC") {
     const blocks = blocksFor(input.durationS)
       .map((b) => `${b.n} = ${fmtTime(b.startS)} to ${fmtTime(b.endS)}`)
       .join(", ");
-    lines.push(`Blocks: ${blocks}. List the shots of every block before writing notes.`);
+    lines.push(
+      arm === "AC"
+        ? `Blocks: ${blocks}. List the shots of every block, fill or empty the problem slot of every shot, then write the notes that span shots.`
+        : `Blocks: ${blocks}. List the shots of every block before writing notes.`,
+    );
   }
   if (input.cast.length > 0) {
     lines.push(
@@ -364,6 +387,8 @@ export type PromptConfig = {
   exemplars: number;
   video: VideoOptions;
   thinking?: ThinkingLevel;
+  /** windowed passes: one whole-cut call plus one call per window (the eval runner only) */
+  windows?: { sizeS: number; overlapS: number };
 };
 
 /** The baseline until the freeze: arm P (the purged round-1 text), no exemplars, API default sampling. */
@@ -387,6 +412,7 @@ export function promptVersion(config: PromptConfig): string {
         clip: v.clip ? [v.clip.startS, v.clip.endS] : null,
         staticProcessing: v.staticProcessing ?? false,
         thinking: config.thinking ?? null,
+        ...(config.windows ? { windows: [config.windows.sizeS, config.windows.overlapS] } : {}),
       }),
     )
     .digest("hex")

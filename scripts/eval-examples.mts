@@ -6,9 +6,15 @@
 //   npm run eval:run -- --list
 //   npm run eval:run -- --set dev|test|shakedown | --cut "<series>/<episode>/vN"
 //       [--model gemini-3.8-flash --pin] [--run-index 1] [--resume] [--force] [--label text]
-//       [--arm P|A|AB] [--exemplars 0..15] [--exemplar-source other-series|same-series]
+//       [--arm P|A|AB|AC] [--exemplars 0..15] [--exemplar-source other-series|same-series]
 //       [--fps 2] [--resolution low|medium|high] [--thinking minimal|low|medium|high]
 //       [--clip 40:85] [--static] [--seed N] [--worst-case] [--no-carry] [--dir microdrama-review-examples]
+//       [--windows [--window-size 40] [--window-overlap 5]]
+//
+// --windows sends one whole-cut call and then one call per window of the cut (the video part clipped
+// with videoMetadata, timecodes absolute); window notes are added to the whole-cut notes unless a
+// note of the same category sits within 3 s. Verdicts, cast checks and the summary come from the
+// whole-cut call. The run gets its own prompt version and costs 1 + ceil((D - 5) / 35) calls per cut.
 //
 // A run is keyed on (cut, prompt version, model, run index). A cut that already has a completed run
 // for that key is refused unless --resume (skip it) or --force (run it again, logged) is passed. Every
@@ -49,8 +55,8 @@ import {
 } from "@/lib/prompt";
 import { MAX_EXEMPLARS } from "@/lib/review-config";
 import { uniqueCastNames } from "@/lib/review-job";
-import { normalizeReview } from "@/lib/review-output";
-import { fmtTime, pacificDate } from "@/lib/time";
+import { computeDiagnostics, ECHO_WINDOW_S, normalizeReview } from "@/lib/review-output";
+import { fmtTime, pacificDate, windowSpans } from "@/lib/time";
 import { DATA_DIR } from "@/lib/uploads";
 import {
   cutLabel,
@@ -79,6 +85,9 @@ const { values } = parseArgs({
     force: { type: "boolean", default: false },
     label: { type: "string" },
     arm: { type: "string", default: "P" },
+    windows: { type: "boolean", default: false },
+    "window-size": { type: "string" },
+    "window-overlap": { type: "string" },
     exemplars: { type: "string", default: "0" },
     "exemplar-source": { type: "string", default: "other-series" },
     fps: { type: "string" },
@@ -163,7 +172,13 @@ if (values.thinking) {
   if (!(THINKING_LEVELS as readonly string[]).includes(values.thinking)) fail(`--thinking takes ${THINKING_LEVELS.join(", ")}`);
   thinking = values.thinking as ThinkingLevel;
 }
-const config: PromptConfig = { arm, exemplars, video, thinking };
+const windows = values.windows
+  ? { sizeS: Number(values["window-size"] ?? "40"), overlapS: Number(values["window-overlap"] ?? "5") }
+  : undefined;
+if (windows && !(windows.sizeS > windows.overlapS && windows.overlapS >= 0)) fail("--window-size must be larger than --window-overlap");
+/** a window note this close to a note of the same category repeats it */
+const WINDOW_DEDUPE_S = 3;
+const config: PromptConfig = { arm, exemplars, video, thinking, ...(windows ? { windows } : {}) };
 const version = promptVersion(config);
 const runIndex = Math.max(1, Math.round(Number(values["run-index"] ?? "1")));
 /** The same request for the same run index; a second run of the configuration is a different draw. */
@@ -199,10 +214,12 @@ if (pending.length === 0) {
   console.log("Nothing to run.");
   process.exit(0);
 }
+const callsFor = (t: CutRef) => (windows ? 1 + windowSpans(mp4Duration(readFileSync(t.cut.path)) ?? 0, windows.sizeS, windows.overlapS).length : 1);
+const callsNeeded = pending.reduce((n, t) => n + callsFor(t), 0);
 const usedToday = callsOn(requestedModel);
-if (usedToday + pending.length > reserveFor(requestedModel)) {
+if (usedToday + callsNeeded > reserveFor(requestedModel)) {
   console.error(
-    `Refusing to start: ${requestedModel} has ${usedToday} call(s) logged on ${pacificDate()} (Pacific) and this sweep needs ${pending.length}; the reserve is ${reserveFor(requestedModel)} for this model per day.`,
+    `Refusing to start: ${requestedModel} has ${usedToday} call(s) logged on ${pacificDate()} (Pacific) and this sweep needs ${callsNeeded}; the reserve is ${reserveFor(requestedModel)} for this model per day.`,
   );
   for (const b of budget()) console.error(`  ${b.model}: ${b.used} used, ${b.left} left`);
   process.exit(1);
@@ -244,7 +261,9 @@ const resumeCommand = () => {
   return `npm run eval:run -- ${args.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(" ")} --resume`;
 };
 
-stamp(`${pending.length} cut(s), arm ${arm}, exemplars ${exemplars} (${exemplarSource}), prompt ${version}, run ${runIndex}, seed ${seed}, model ${models.join(", ")}${values.pin ? " (pinned)" : ""}`);
+stamp(
+  `${pending.length} cut(s), arm ${arm}, exemplars ${exemplars} (${exemplarSource}), prompt ${version}, run ${runIndex}, seed ${seed}, model ${models.join(", ")}${values.pin ? " (pinned)" : ""}${windows ? `, windows ${windows.sizeS} s with ${windows.overlapS} s overlap (${callsNeeded} calls)` : ""}`,
+);
 
 for (const target of pending) {
   const { series: s, episode: e, cut } = target;
@@ -304,63 +323,106 @@ for (const target of pending) {
       `${target.label}: video ready (${durationS.toFixed(1)} s), ${cast.length} cast${worstCase ? ` (${schemaCastNames.length} in the schema)` : ""}, bible ${s.bibleText.length} chars, ${openNotes.length} open notes, ${exemplarTexts.length} exemplars`,
     );
 
-    const input: ReviewInput = {
-      seriesName: s.name,
-      episodeTitle: e.title,
-      episodeNumber: e.number,
-      versionNumber: cut.number,
-      durationS,
-      seriesBible: s.bibleText,
-      cast,
-      alreadyNoted: [],
-      openNotes,
-      exemplars: exemplarTexts,
-      video: { uri: file.uri, mimeType: file.mimeType },
-    };
-    const result = await generateReview(
-      ai,
-      models,
-      buildContents(input, arm, video),
-      buildResponseSchema(schemaCastNames, [...openByAlias.keys()], arm),
-      buildSystemInstruction(arm),
-      {
-        thinking,
-        seed,
-        pin: values.pin,
-        retryWaitMs: 30_000,
-        onAttempt: (a) => {
-          const now = Date.now();
-          appendLedger({
-            at: new Date(now).toISOString(),
-            pacificDate: pacificDate(now),
-            model: a.model,
-            source: "eval",
-            cut: target.label,
-            status: a.status,
-            httpStatus: a.httpStatus,
-            generateS: Math.round(a.generateS * 10) / 10,
-            promptVersion: version,
-            runIndex,
-            ...(values.force ? { forced: true } : {}),
-          });
-          stamp(`${target.label}: ${a.model} ${a.status}${a.httpStatus ? ` ${a.httpStatus}` : ""} in ${a.generateS.toFixed(1)} s${a.droppedOption ? ` (dropped ${a.droppedOption})` : ""}`);
+    // One call: the whole cut, or one window of it (clipped video part, no open notes).
+    const callModel = async (clip: { startS: number; endS: number } | undefined, open: OpenNoteInput[], aliases: Map<string, number>) => {
+      const input: ReviewInput = {
+        seriesName: s.name,
+        episodeTitle: e.title,
+        episodeNumber: e.number,
+        versionNumber: cut.number,
+        durationS,
+        seriesBible: s.bibleText,
+        cast,
+        alreadyNoted: [],
+        openNotes: open,
+        exemplars: exemplarTexts,
+        video: { uri: file.uri, mimeType: file.mimeType },
+      };
+      const callVideo: VideoOptions = clip ? { ...video, clip } : video;
+      const result = await generateReview(
+        ai,
+        models,
+        buildContents(input, arm, callVideo),
+        buildResponseSchema(schemaCastNames, [...aliases.keys()], arm),
+        buildSystemInstruction(arm),
+        {
+          thinking,
+          seed,
+          pin: values.pin,
+          retryWaitMs: 30_000,
+          onAttempt: (a) => {
+            const now = Date.now();
+            appendLedger({
+              at: new Date(now).toISOString(),
+              pacificDate: pacificDate(now),
+              model: a.model,
+              source: "eval",
+              cut: clip ? `${target.label} [${fmtTime(clip.startS)} to ${fmtTime(clip.endS)}]` : target.label,
+              status: a.status,
+              httpStatus: a.httpStatus,
+              generateS: Math.round(a.generateS * 10) / 10,
+              promptVersion: version,
+              runIndex,
+              ...(values.force ? { forced: true } : {}),
+            });
+            stamp(
+              `${target.label}${clip ? ` [${fmtTime(clip.startS)} to ${fmtTime(clip.endS)}]` : ""}: ${a.model} ${a.status}${a.httpStatus ? ` ${a.httpStatus}` : ""} in ${a.generateS.toFixed(1)} s${a.droppedOption ? ` (dropped ${a.droppedOption})` : ""}`,
+            );
+          },
         },
-      },
-    );
-    const model = result.model;
+      );
+      const raw = JSON.parse(result.text);
+      const review = normalizeReview(raw, { durationS, castByName, openByAlias: aliases });
+      return { input, result, raw, review };
+    };
+
+    const whole = await callModel(undefined, openNotes, openByAlias);
+    const { input, review } = whole;
+    const results = [whole.result];
+    const raws: { whole: unknown; windows: Array<{ span: { startS: number; endS: number }; raw: unknown }> } = { whole: whole.raw, windows: [] };
+    let windowNotes = 0;
+    let windowRepeats = 0;
+    if (windows) {
+      for (const span of windowSpans(durationS, windows.sizeS, windows.overlapS)) {
+        const w = await callModel(span, [], new Map());
+        results.push(w.result);
+        raws.windows.push({ span, raw: w.raw });
+        review.shotList.push(...w.review.shotList);
+        for (const n of w.review.notes) {
+          if (n.tStart < span.startS - 0.5 || n.tStart > span.endS + 0.5) continue;
+          if (review.notes.some((m) => m.category === n.category && Math.abs(m.tStart - n.tStart) <= WINDOW_DEDUPE_S)) {
+            windowRepeats += 1;
+            continue;
+          }
+          review.notes.push(n);
+          windowNotes += 1;
+        }
+      }
+      const verdictTimes = review.assessments.filter((a) => a.assessment === "not_fixed" && a.suggestedTStart !== null).map((a) => a.suggestedTStart as number);
+      const kept = review.notes.filter((n) => !verdictTimes.some((t) => Math.abs(t - n.tStart) <= ECHO_WINDOW_S));
+      review.droppedEchoes += review.notes.length - kept.length;
+      review.notes = kept.sort((a, b) => a.tStart - b.tStart);
+      review.diagnostics = computeDiagnostics(review.notes, review.shotList, durationS);
+    }
+    const model = whole.result.model;
     const elapsedMs = Date.now() - started;
-    const raw = JSON.parse(result.text);
-    const review = normalizeReview(raw, { durationS, castByName, openByAlias });
-    const generateS = result.attempts.filter((a) => a.status === "ok").reduce((n, a) => n + a.generateS, 0);
+    const attempts = results.flatMap((r) => r.attempts);
+    const usage = results.reduce(
+      (u, r) => ({ input: u.input + r.usage.input, output: u.output + r.usage.output, thoughts: u.thoughts + r.usage.thoughts, cached: u.cached + r.usage.cached }),
+      { input: 0, output: 0, thoughts: 0, cached: 0 },
+    );
+    const finishReason = whole.result.finishReason;
+    const generateS = attempts.filter((a) => a.status === "ok").reduce((n, a) => n + a.generateS, 0);
 
     // A quick signal on the console only: the scorer owns the real numbers.
     const hit6 = truth.filter((tn) => review.notes.some((an) => Math.abs(an.tStart - tn.time) <= 6)).length;
     const d = review.diagnostics;
     console.log(
-      `  ${review.notes.length} notes (${review.droppedNotes} dropped, ${review.droppedEchoes} echoed carried notes dropped), ${review.assessments.length} verdicts, ` +
+      `  ${review.notes.length} notes (${review.droppedNotes} dropped, ${review.droppedEchoes} echoed carried notes dropped, ${review.shotNotes} lifted from ${review.slotsFilled} filled shot slots), ${review.assessments.length} verdicts, ` +
         `${truth.length} strategist notes, ${hit6} within 6 s by time only; ` +
         `blocks ${d.blocksListed}, shots ${d.shotsListed}, boundary share ${d.boundaryShare === null ? "n/a" : Math.round(d.boundaryShare * 100) + "%"}, out of block ${d.outOfBlock}; ` +
-        `${generateS.toFixed(1)} s generate, tokens in ${result.usage.input} out ${result.usage.output} thoughts ${result.usage.thoughts}, finish ${result.finishReason}, list price ${fmtUsd(estimateCost(model, result.usage))}`,
+        `${generateS.toFixed(1)} s generate, tokens in ${usage.input} out ${usage.output} thoughts ${usage.thoughts}, finish ${finishReason}, list price ${fmtUsd(estimateCost(model, usage))}` +
+        (windows ? `; windows: ${results.length - 1} calls, ${windowNotes} window notes added, ${windowRepeats} repeats skipped` : ""),
     );
 
     const record = {
@@ -377,12 +439,13 @@ for (const target of pending) {
       durationS,
       elapsedMs,
       generateS,
-      finishReason: result.finishReason,
-      usage: result.usage,
-      attempts: result.attempts,
+      finishReason,
+      usage,
+      attempts,
+      windowed: windows ? { ...windows, calls: results.length, windowNotes, windowRepeats } : null,
       input: { ...input, cast: cast.map((c) => ({ name: c.name, description: c.description })) },
       truth,
-      raw,
+      raw: windows ? raws : whole.raw,
       normalized: review,
     };
     const outPath = outPathFor(target.label, model);

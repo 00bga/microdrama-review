@@ -21,7 +21,7 @@ function num(raw: string | undefined): number | undefined {
 export type AppReviewConfig = { prompt: PromptConfig; seed: number | undefined };
 
 /**
- * GEMINI_ARM (A or AB), GEMINI_EXEMPLARS (0 to 15), GEMINI_FPS (frames per second, API default 1),
+ * GEMINI_ARM (P, A, AB or AC), GEMINI_EXEMPLARS (0 to 15), GEMINI_FPS (frames per second, API default 1),
  * GEMINI_RESOLUTION (low, medium, high), GEMINI_THINKING (minimal, low, medium, high), GEMINI_SEED.
  * Anything unset or invalid keeps the code default.
  */
