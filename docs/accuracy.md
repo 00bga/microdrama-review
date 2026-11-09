@@ -127,6 +127,12 @@ The four round-1 3.8 Flash dev runs, rescored with the labels: 8 of 58 moments m
 - Added 2026-11-06, the freeze (P13 applied; D28): the frozen configuration is arm P with 0 exemplars, prompt version `a8a8b0e6`, default sampling, on 3.6 Flash with `--pin`. No lever met the keep rule of P12: on 3.6 Flash the baseline matched 6 of 58 dev moments (floor 11%), arm A 7 (floor 13%), arm AB 9 (floor 14%), arm A with 15 exemplars 5 (floor 16%); on Flash-Lite arm AC 3 (floor 4%) and windowed passes 15 (floor 25%). The frozen version is the one the app ships (`DEFAULT_PROMPT_CONFIG`). The held-out run 1 label is `frozen`; run 2, if quota allows, `frozen-r2`; the dev spread of the frozen configuration `frozen-dev-r2`; the series-memory run on Bound E06 v2 `series-memory`. One more app-eval difference for P15: the app falls through its model list on overload, the evaluation pins one model.
 - Added 2026-11-06, the reporting model (amends P13; D26): the held-out run is made on 3.6 Flash with `--pin`, because the ledger shows 3.8 Flash answering 0 of 33 calls between 2026-11-04 16:06 and 2026-11-06 17:15 Tbilisi (3.6 Flash 13 of 37, Flash-Lite 53 of 63). Every other line of P13 stands. If 3.8 Flash answers later, its table is added beside the 3.6 table and does not replace it.
 
+- Added 2026-11-07, held-out run 1 (P13 as amended; 4 successful calls on 3.6 Flash after 5 overloaded ones, the last at 13:44 Tbilisi): 4 or 5 notes per cut, 23 hit sources; automatic coverage 2 of 38 moments (5%, Wilson 1 to 17) against a floor of 11%, lift -5 points; confirmed by watching 1 of 38 (3%, Wilson 0 to 13, bootstrap over cuts 0 to 11). The one confirmed match is the `not_fixed` verdict on a carried note of Everyone But Her E12 v2; excluding carried-derived hits the confirmed coverage is 0 of 38. No cross-category pair was recovered (0 of 8 candidates). Missed moments: 36, of which 30 observable; by family clarity 6, delivery 6, continuity 5, story logic 4.
+- Added 2026-11-10, the scope of the held-out judgments (amends P9, P10 and P14; D29): only the labels that decide confirmed coverage were made, the 2 time-matched pairs (1 same, 1 related) and the 8 cross-category candidates (0 same). The validity of the 23 hit sources and the 36 verdicts on carried notes were not judged. The decision was made after the automatic held-out number was printed and before any label was written; at that point the confirmed figure could not exceed 10 of 38 (26%) whatever the labels. Seven of the ten labels were decided from the two note texts, which describe different problems; three by watching. Consequences: validity is reported as not judged, so the headline sentence carries no validity clause and says so; verdict agreement is reported only as the automatic evidence rate (1 of the 5 `not_fixed` verdicts has a strategist note in the same family within 6 s of its new timecode); "reached 70%" and "consistent with 70%" cannot be said.
+- Added 2026-11-08, held-out run 2 and the spread (P11): run 2 on the held-out cuts matched 2 of 38 (5%) against a floor of 11%, not judged, reported beside run 1 and never averaged in. The frozen configuration's second run on the tuning cuts matched 3 of 58 (5%, floor 10%) against 6 of 58 (10%, floor 10%) in run 1: a run-to-run spread of 5 points pooled and up to 22 points on one cut (Bound E04 v2, 2 of 9 then 0 of 9). Series memory (D28 labels; same-series notes added for Bound E06 v2 only): 1 of 12 moments (8%, floor 8%) against 0 of 12 in held-out run 1, one call, outside the headline.
+- Added 2026-11-10, 3.8 Flash (D26 follow-up): after 0 of 33 calls between Nov 4 and Nov 6, it answered 3 tuning cuts of the frozen configuration on Nov 7 (Bound E04 v1 and v2, Haunted Crew E01 v2): 9 of 36 moments (25%, Wilson 14 to 41) against a floor of 17%, lift 8 points. The fourth tuning cut and the held-out cuts got no answer through the Nov 8 reserve; the ledger shows 3 of 74 calls answered on 3.8 Flash since Nov 4 (3.6 Flash 29 of 60, Flash-Lite 57 of 67). The 3.8 rows are a side table on three tuning cuts, not a held-out result.
+- Added 2026-11-10, scorer changes after the held-out run (no number in the tables moved; the scorer at the freeze commit prints the same tuning figures): the judgment export accepts an empty cell as "not judged" instead of refusing the file; confirmed figures are computed only for the cuts a judgment file covers, since the frozen configuration's tuning runs share its group key and were never judged; `--report` writes one table per set, so tuning and held-out cuts of one configuration are never pooled. The prose figures added on 2026-11-06 were computed with an earlier scorer build and differ from the regenerated tables by up to 2 points in the floor (baseline floor 11% there, 10% in the tables; arm A 13% there, 11% here); no decision depends on the difference, and the tables below are the reference.
+
 ## Method in full
 
 The scorer (`scripts/eval/score.mts`) replays every saved run under `data/eval/` with zero calls. For each run it builds the moments from the package's `notes.json` and the label file, the hit sources from the run's normalized notes and verdicts, the greedy matching, the two floors, the sensitivity grid, the miss list by family and kind, the verdict evidence rate, the signed offsets of matched pairs and the arm-AB diagnostics (the share of timecodes within 0.5 s of a 10 s boundary, the share at a listed shot start, notes outside their block). With a judgment file for the run's group it adds confirmed coverage, validity and verdict agreement. `--report` regenerates the tables below.
@@ -139,6 +145,330 @@ Cost line: list prices as read from the provider's pricing page on 2026-10-19 (3
 
 <!-- eval:score tables start -->
 
-(Not generated yet: run `npm run eval:score -- --report` after the first scored run.)
+Generated by `npm run eval:score -- --report` (window 6 s, anchor 4 s). Counts and percentages only.
+
+### gemini-3.5-flash-lite, prompt c610cd0d (round-1), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 2 | 0 | 2 | 12 | 10 | 1 | 10% | 1% / 0% | 9 | 10% | 8% | n/a | n/a |
+| Bound to the Demon King/Episode 04/v2 | 5 | 2 | 8 | 12 | 9 | 0 | 0% | 8% / 11% | -11 | 33% | 0% | n/a | n/a |
+| Pooled (micro) | 7 | 2 | 10 | 24 | 19 | 1 | 5% (95% 1 to 25) | 5% / 5% | 0 | 21% | 4% | n/a | |
+
+Macro (mean of per-cut coverage): 5%. Observable moments: 7%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 0%; window 3 s, anchor 4 s: 0%; window 6 s, anchor 0 s: 5%; window 6 s, anchor 4 s: 5%; window 10 s, anchor 0 s: 5%; window 10 s, anchor 4 s: 5%.
+
+### gemini-3.5-flash-lite, prompt cbebfa12 (round-1), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 5 | 0 | 5 | 12 | 10 | 0 | 0% | 3% / 10% | -10 | 30% | 0% | n/a | n/a |
+| Pooled (micro) | 5 | 0 | 5 | 12 | 10 | 0 | 0% (95% 0 to 28) | 3% / 10% | -10 | 30% | 0% | n/a | |
+
+Macro (mean of per-cut coverage): 0%. Observable moments: 0%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 0%; window 3 s, anchor 4 s: 0%; window 6 s, anchor 0 s: 0%; window 6 s, anchor 4 s: 0%; window 10 s, anchor 0 s: 10%; window 10 s, anchor 4 s: 10%.
+
+### gemini-3.6-flash, prompt cbebfa12 (round-1), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 8 | 0 | 8 | 12 | 10 | 4 | 40% | 11% / 10% | 29 | 60% | 33% | n/a | n/a |
+| Bound to the Demon King/Episode 04/v2 | 4 | 0 | 12 | 12 | 9 | 2 | 22% | 15% / 11% | 7 | 44% | 17% | n/a | n/a |
+| The Haunted Crew/Episode 01/v2 | 5 | 0 | 5 | 38 | 17 | 2 | 12% | 9% / 24% | -12 | 24% | 5% | n/a | n/a |
+| Pooled (micro) | 17 | 0 | 25 | 62 | 36 | 8 | 22% (95% 12 to 38) | 11% / 17% | 6 | 39% | 13% | n/a | |
+
+Macro (mean of per-cut coverage): 25%. Observable moments: 25%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 11%; window 3 s, anchor 4 s: 17%; window 6 s, anchor 0 s: 17%; window 6 s, anchor 4 s: 22%; window 10 s, anchor 0 s: 17%; window 10 s, anchor 4 s: 25%.
+
+### gemini-3.5-flash, prompt 3f0bef42 (round-1), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 9 | 0 | 9 | 12 | 10 | 3 | 30% | 21% / 30% | 0 | 50% | 17% | n/a | n/a |
+| Pooled (micro) | 9 | 0 | 9 | 12 | 10 | 3 | 30% (95% 11 to 60) | 21% / 30% | 0 | 50% | 17% | n/a | |
+
+Macro (mean of per-cut coverage): 30%. Observable moments: 38%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 20%; window 3 s, anchor 4 s: 20%; window 6 s, anchor 0 s: 20%; window 6 s, anchor 4 s: 30%; window 10 s, anchor 0 s: 50%; window 10 s, anchor 4 s: 60%.
+
+### gemini-3.5-flash-lite, prompt 6599019d (round-1), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| The Haunted Crew/Episode 01/v2 | 4 | 0 | 4 | 38 | 17 | 2 | 12% | 4% / 6% | 6 | 24% | 5% | n/a | n/a |
+| Pooled (micro) | 4 | 0 | 4 | 38 | 17 | 2 | 12% (95% 3 to 34) | 4% / 6% | 6 | 24% | 5% | n/a | |
+
+Macro (mean of per-cut coverage): 12%. Observable moments: 12%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 0%; window 3 s, anchor 4 s: 6%; window 6 s, anchor 0 s: 6%; window 6 s, anchor 4 s: 12%; window 10 s, anchor 0 s: 6%; window 10 s, anchor 4 s: 18%.
+
+### gemini-3.8-flash, prompt 6599019d (round-1), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 7 | 0 | 7 | 12 | 10 | 2 | 20% | 20% / 10% | 0 | 50% | 25% | n/a | n/a |
+| Bound to the Demon King/Episode 04/v2 | 4 | 1 | 8 | 12 | 9 | 0 | 0% | 8% / 0% | -8 | 33% | 0% | n/a | n/a |
+| The Haunted Crew/Episode 01/v2 | 8 | 0 | 8 | 38 | 17 | 4 | 24% | 23% / 29% | -6 | 41% | 13% | n/a | n/a |
+| The Villain's Therapist/Episode 01/v1 | 9 | 0 | 9 | 24 | 22 | 2 | 9% | 5% / 0% | 4 | 41% | 8% | n/a | n/a |
+| Pooled (micro) | 28 | 1 | 32 | 86 | 58 | 8 | 14% (95% 7 to 25) | 13% / 10% | 1 | 41% | 12% | n/a | |
+
+Macro (mean of per-cut coverage): 13%. Observable moments: 14%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 10%; window 3 s, anchor 4 s: 14%; window 6 s, anchor 0 s: 12%; window 6 s, anchor 4 s: 14%; window 10 s, anchor 0 s: 12%; window 10 s, anchor 4 s: 16%.
+
+### gemini-3.5-flash-lite, prompt 559f0a86 (spike-default, arm-A), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 4 | 0 | 4 | 12 | 10 | 0 | 0% | 6% / 10% | -10 | 20% | 0% | n/a | 22.4 |
+| Bound to the Demon King/Episode 04/v2 | 5 | 3 | 5 | 12 | 9 | 0 | 0% | 4% / 11% | -11 | 11% | 0% | n/a | 23.9 |
+| The Haunted Crew/Episode 01/v2 | 3 | 0 | 3 | 38 | 17 | 3 | 18% | 4% / 0% | 14 | 18% | 5% | n/a | 11.5 |
+| The Villain's Therapist/Episode 01/v1 | 3 | 0 | 3 | 24 | 22 | 2 | 9% | 3% / 0% | 6 | 9% | 8% | n/a | 21.5 |
+| Pooled (micro) | 15 | 3 | 15 | 86 | 58 | 5 | 9% (95% 4 to 19) | 4% / 3% | 5 | 14% | 5% | n/a | |
+
+Macro (mean of per-cut coverage): 7%. Observable moments: 11%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 2%; window 3 s, anchor 4 s: 3%; window 6 s, anchor 0 s: 5%; window 6 s, anchor 4 s: 9%; window 10 s, anchor 0 s: 10%; window 10 s, anchor 4 s: 14%.
+
+### gemini-3.5-flash-lite, prompt a8a8b0e6 (arm-P), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 3 | 0 | 3 | 12 | 10 | 2 | 20% | 9% / 20% | 0 | 20% | 17% | n/a | 26.7 |
+| Bound to the Demon King/Episode 04/v2 | 6 | 1 | 6 | 12 | 9 | 1 | 11% | 7% / 0% | 4 | 11% | 8% | n/a | 46.2 |
+| The Haunted Crew/Episode 01/v2 | 3 | 0 | 3 | 38 | 17 | 2 | 12% | 3% / 0% | 9 | 18% | 5% | n/a | 29.7 |
+| The Villain's Therapist/Episode 01/v1 | 6 | 0 | 6 | 24 | 22 | 1 | 5% | 4% / 5% | 0 | 27% | 4% | n/a | 22.4 |
+| Pooled (micro) | 18 | 1 | 18 | 86 | 58 | 6 | 10% (95% 5 to 21) | 5% / 5% | 5 | 21% | 7% | n/a | |
+
+Macro (mean of per-cut coverage): 12%. Observable moments: 14%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 5%; window 3 s, anchor 4 s: 7%; window 6 s, anchor 0 s: 9%; window 6 s, anchor 4 s: 10%; window 10 s, anchor 0 s: 9%; window 10 s, anchor 4 s: 10%.
+
+### gemini-3.5-flash-lite, prompt 9a4f1302 (arm-AB), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 4 | 0 | 4 | 12 | 10 | 1 | 10% | 9% / 10% | 0 | 30% | 8% | n/a | 33.4 |
+| Bound to the Demon King/Episode 04/v2 | 12 | 12 | 12 | 12 | 9 | 3 | 33% | 18% / 11% | 15 | 67% | 25% | n/a | 45.5 |
+| The Haunted Crew/Episode 01/v2 | 2 | 0 | 2 | 38 | 17 | 1 | 6% | 2% / 0% | 4 | 12% | 3% | n/a | 18.8 |
+| The Villain's Therapist/Episode 01/v1 | 2 | 0 | 2 | 24 | 22 | 2 | 9% | 4% / 9% | 0 | 9% | 8% | n/a | 36 |
+| Pooled (micro) | 20 | 12 | 20 | 86 | 58 | 7 | 12% (95% 6 to 23) | 6% / 7% | 5 | 22% | 8% | n/a | |
+
+Macro (mean of per-cut coverage): 15%. Observable moments: 14%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 7%; window 3 s, anchor 4 s: 9%; window 6 s, anchor 0 s: 9%; window 6 s, anchor 4 s: 12%; window 10 s, anchor 0 s: 10%; window 10 s, anchor 4 s: 12%.
+
+### gemini-3.6-flash, prompt a8a8b0e6 (baseline-purged, frozen), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 5 | 0 | 5 | 12 | 10 | 2 | 20% | 11% / 10% | 9 | 40% | 17% | n/a | 66.2 |
+| Bound to the Demon King/Episode 04/v2 | 3 | 0 | 10 | 12 | 9 | 2 | 22% | 11% / 0% | 11 | 44% | 17% | n/a | 40.2 |
+| The Haunted Crew/Episode 01/v2 | 8 | 0 | 8 | 38 | 17 | 2 | 12% | 18% / 18% | -6 | 47% | 5% | n/a | 55.3 |
+| The Villain's Therapist/Episode 01/v1 | 5 | 0 | 5 | 24 | 22 | 0 | 0% | 4% / 5% | -5 | 18% | 0% | n/a | 60.3 |
+| Pooled (micro) | 21 | 0 | 28 | 86 | 58 | 6 | 10% (95% 5 to 21) | 10% / 9% | 0 | 34% | 7% | n/a | |
+
+Macro (mean of per-cut coverage): 13%. Observable moments: 16%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 5%; window 3 s, anchor 4 s: 7%; window 6 s, anchor 0 s: 9%; window 6 s, anchor 4 s: 10%; window 10 s, anchor 0 s: 12%; window 10 s, anchor 4 s: 14%.
+
+### gemini-3.6-flash, prompt a8a8b0e6 (baseline-purged, frozen), run 1, test
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 06/v2 | 5 | 0 | 5 | 16 | 12 | 0 | 0% | 4% / 8% | -8 | 25% | 0% | n/a | 38.5 |
+| Everyone But Her/Episode 12/v2 | 4 | 1 | 5 | 7 | 5 | 1 | 20% | 11% / 20% | 0 | 20% | 14% | n/a | 82.2 |
+| Everyone But Her/Episode 12/v3 | 4 | 1 | 8 | 14 | 12 | 1 | 8% | 8% / 17% | -8 | 33% | 7% | n/a | 65.7 |
+| The Villain's Therapist/Episode 01/v2 | 5 | 0 | 5 | 10 | 9 | 0 | 0% | 1% / 0% | -1 | 0% | 0% | n/a | 49.1 |
+| Pooled (micro) | 18 | 2 | 23 | 47 | 38 | 2 | 5% (95% 1 to 17) | 5% / 11% | -5 | 21% | 4% | n/a | |
+
+Macro (mean of per-cut coverage): 7%. Observable moments: 6%.
+
+Confirmed by watching: 1 of 38 moments, 3% (Wilson 0 to 13; bootstrap over cuts 0 to 11). Observable slice 3%. Hits from carried-derived sources: 1; excluding them 0%. Cross-category pairs recovered by the human check: 0.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 3%; window 3 s, anchor 4 s: 3%; window 6 s, anchor 0 s: 5%; window 6 s, anchor 4 s: 5%; window 10 s, anchor 0 s: 8%; window 10 s, anchor 4 s: 8%.
+
+### gemini-3.6-flash, prompt 559f0a86 (arm-A), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 6 | 0 | 6 | 12 | 10 | 2 | 20% | 13% / 20% | 0 | 50% | 17% | n/a | 52 |
+| Bound to the Demon King/Episode 04/v2 | 2 | 0 | 9 | 12 | 9 | 1 | 11% | 12% / 22% | -11 | 33% | 8% | n/a | 41.7 |
+| The Haunted Crew/Episode 01/v2 | 5 | 0 | 5 | 38 | 17 | 3 | 18% | 13% / 6% | 5 | 29% | 8% | n/a | 143.8 |
+| The Villain's Therapist/Episode 01/v1 | 7 | 0 | 7 | 24 | 22 | 1 | 5% | 7% / 0% | -2 | 32% | 4% | n/a | 57.7 |
+| Pooled (micro) | 20 | 0 | 27 | 86 | 58 | 7 | 12% (95% 6 to 23) | 11% / 9% | 1 | 34% | 8% | n/a | |
+
+Macro (mean of per-cut coverage): 13%. Observable moments: 16%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 5%; window 3 s, anchor 4 s: 7%; window 6 s, anchor 0 s: 9%; window 6 s, anchor 4 s: 12%; window 10 s, anchor 0 s: 10%; window 10 s, anchor 4 s: 16%.
+
+### gemini-3.5-flash-lite, prompt 52b78312 (arm-A-ex15), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 4 | 0 | 4 | 12 | 10 | 0 | 0% | 8% / 10% | -10 | 20% | 0% | n/a | 23.3 |
+| Bound to the Demon King/Episode 04/v2 | 3 | 5 | 13 | 12 | 9 | 3 | 33% | 22% / 44% | -11 | 78% | 25% | n/a | 38.2 |
+| The Haunted Crew/Episode 01/v2 | 9 | 0 | 9 | 38 | 17 | 5 | 29% | 22% / 29% | 0 | 53% | 13% | n/a | 13.4 |
+| The Villain's Therapist/Episode 01/v1 | 3 | 0 | 3 | 24 | 22 | 2 | 9% | 2% / 0% | 7 | 14% | 8% | n/a | 20.7 |
+| Pooled (micro) | 19 | 5 | 29 | 86 | 58 | 10 | 17% (95% 10 to 29) | 12% / 17% | 0 | 36% | 12% | n/a | |
+
+Macro (mean of per-cut coverage): 18%. Observable moments: 22%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 10%; window 3 s, anchor 4 s: 16%; window 6 s, anchor 0 s: 10%; window 6 s, anchor 4 s: 17%; window 10 s, anchor 0 s: 14%; window 10 s, anchor 4 s: 19%.
+
+### gemini-3.6-flash, prompt 9a4f1302 (arm-AB), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 6 | 0 | 6 | 12 | 10 | 2 | 20% | 12% / 10% | 8 | 40% | 17% | n/a | 57.6 |
+| Bound to the Demon King/Episode 04/v2 | 4 | 0 | 10 | 12 | 9 | 1 | 11% | 16% / 22% | -11 | 56% | 8% | n/a | 85.6 |
+| The Haunted Crew/Episode 01/v2 | 8 | 0 | 8 | 38 | 17 | 5 | 29% | 20% / 24% | 6 | 47% | 11% | n/a | 46.9 |
+| The Villain's Therapist/Episode 01/v1 | 5 | 0 | 5 | 24 | 22 | 1 | 5% | 5% / 5% | 0 | 23% | 4% | n/a | 50.9 |
+| Pooled (micro) | 23 | 0 | 29 | 86 | 58 | 9 | 16% (95% 8 to 27) | 12% / 14% | 2 | 38% | 9% | n/a | |
+
+Macro (mean of per-cut coverage): 16%. Observable moments: 22%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 7%; window 3 s, anchor 4 s: 10%; window 6 s, anchor 0 s: 10%; window 6 s, anchor 4 s: 16%; window 10 s, anchor 0 s: 14%; window 10 s, anchor 4 s: 19%.
+
+### gemini-3.5-flash-lite, prompt db95ec7e (fps2), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| The Haunted Crew/Episode 01/v2 | 2 | 0 | 2 | 38 | 17 | 2 | 12% | 2% / 0% | 10 | 12% | 5% | n/a | 15.9 |
+| Pooled (micro) | 2 | 0 | 2 | 38 | 17 | 2 | 12% (95% 3 to 34) | 2% / 0% | 10 | 12% | 5% | n/a | |
+
+Macro (mean of per-cut coverage): 12%. Observable moments: 12%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 0%; window 3 s, anchor 4 s: 6%; window 6 s, anchor 0 s: 6%; window 6 s, anchor 4 s: 12%; window 10 s, anchor 0 s: 6%; window 10 s, anchor 4 s: 12%.
+
+### gemini-3.5-flash-lite, prompt 3fb8f82a (fps3), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| The Haunted Crew/Episode 01/v2 | 2 | 0 | 2 | 38 | 17 | 2 | 12% | 2% / 0% | 10 | 12% | 5% | n/a | 19.2 |
+| Pooled (micro) | 2 | 0 | 2 | 38 | 17 | 2 | 12% (95% 3 to 34) | 2% / 0% | 10 | 12% | 5% | n/a | |
+
+Macro (mean of per-cut coverage): 12%. Observable moments: 12%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 0%; window 3 s, anchor 4 s: 6%; window 6 s, anchor 0 s: 6%; window 6 s, anchor 4 s: 12%; window 10 s, anchor 0 s: 6%; window 10 s, anchor 4 s: 12%.
+
+### gemini-3.5-flash-lite, prompt 4df8ed6d (res-medium), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| The Haunted Crew/Episode 01/v2 | 4 | 0 | 4 | 38 | 17 | 2 | 12% | 10% / 18% | -6 | 24% | 5% | n/a | 11.9 |
+| Pooled (micro) | 4 | 0 | 4 | 38 | 17 | 2 | 12% (95% 3 to 34) | 10% / 18% | -6 | 24% | 5% | n/a | |
+
+Macro (mean of per-cut coverage): 12%. Observable moments: 12%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 6%; window 3 s, anchor 4 s: 12%; window 6 s, anchor 0 s: 6%; window 6 s, anchor 4 s: 12%; window 10 s, anchor 0 s: 6%; window 10 s, anchor 4 s: 12%.
+
+### gemini-3.5-flash-lite, prompt 7fd6ad6d (think-high), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| The Haunted Crew/Episode 01/v2 | 3 | 0 | 3 | 38 | 17 | 2 | 12% | 3% / 0% | 9 | 18% | 5% | n/a | 4.1 |
+| Pooled (micro) | 3 | 0 | 3 | 38 | 17 | 2 | 12% (95% 3 to 34) | 3% / 0% | 9 | 18% | 5% | n/a | |
+
+Macro (mean of per-cut coverage): 12%. Observable moments: 12%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 0%; window 3 s, anchor 4 s: 6%; window 6 s, anchor 0 s: 6%; window 6 s, anchor 4 s: 12%; window 10 s, anchor 0 s: 6%; window 10 s, anchor 4 s: 18%.
+
+### gemini-3.5-flash-lite, prompt 23bcbf4a (arm-AC), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 1 | 0 | 1 | 12 | 10 | 0 | 0% | 2% / 10% | -10 | 0% | 0% | n/a | 55 |
+| Bound to the Demon King/Episode 04/v2 | 2 | 2 | 4 | 12 | 9 | 1 | 11% | 5% / 0% | 6 | 33% | 8% | n/a | 23.7 |
+| The Haunted Crew/Episode 01/v2 | 1 | 0 | 1 | 38 | 17 | 1 | 6% | 1% / 0% | 5 | 6% | 3% | n/a | 13.1 |
+| The Villain's Therapist/Episode 01/v1 | 1 | 0 | 1 | 24 | 22 | 1 | 5% | 2% / 0% | 2 | 5% | 4% | n/a | 16 |
+| Pooled (micro) | 5 | 2 | 7 | 86 | 58 | 3 | 5% (95% 2 to 14) | 2% / 2% | 3 | 9% | 3% | n/a | |
+
+Macro (mean of per-cut coverage): 5%. Observable moments: 5%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 3%; window 3 s, anchor 4 s: 5%; window 6 s, anchor 0 s: 3%; window 6 s, anchor 4 s: 5%; window 10 s, anchor 0 s: 5%; window 10 s, anchor 4 s: 7%.
+
+### gemini-3.6-flash, prompt 52b78312 (arm-A-ex15), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 7 | 0 | 7 | 12 | 10 | 1 | 10% | 16% / 30% | -20 | 40% | 8% | n/a | 37.7 |
+| Bound to the Demon King/Episode 04/v2 | 4 | 1 | 11 | 12 | 9 | 2 | 22% | 18% / 33% | -11 | 56% | 17% | n/a | 60.7 |
+| The Haunted Crew/Episode 01/v2 | 4 | 0 | 4 | 38 | 17 | 2 | 12% | 12% / 12% | 0 | 24% | 5% | n/a | 33.9 |
+| The Villain's Therapist/Episode 01/v1 | 4 | 0 | 4 | 24 | 22 | 0 | 0% | 1% / 5% | -5 | 18% | 0% | n/a | 35.2 |
+| Pooled (micro) | 19 | 1 | 26 | 86 | 58 | 5 | 9% (95% 4 to 19) | 9% / 16% | -7 | 29% | 6% | n/a | |
+
+Macro (mean of per-cut coverage): 11%. Observable moments: 14%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 5%; window 3 s, anchor 4 s: 7%; window 6 s, anchor 0 s: 7%; window 6 s, anchor 4 s: 9%; window 10 s, anchor 0 s: 7%; window 10 s, anchor 4 s: 10%.
+
+### gemini-3.5-flash-lite, prompt 714997e0 (windows-P), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 17 | 0 | 17 | 12 | 10 | 3 | 30% | 28% / 30% | 0 | 70% | 33% | n/a | 52.9 |
+| Bound to the Demon King/Episode 04/v2 | 18 | 1 | 20 | 12 | 9 | 1 | 11% | 25% / 22% | -14 | 44% | 8% | n/a | 44.5 |
+| The Haunted Crew/Episode 01/v2 | 12 | 0 | 12 | 38 | 17 | 6 | 35% | 17% / 29% | 6 | 65% | 16% | n/a | 25.1 |
+| The Villain's Therapist/Episode 01/v1 | 16 | 0 | 16 | 24 | 22 | 5 | 23% | 20% / 18% | 3 | 55% | 21% | n/a | 64.1 |
+| Pooled (micro) | 63 | 1 | 65 | 86 | 58 | 15 | 26% (95% 16 to 38) | 21% / 24% | 2 | 59% | 19% | n/a | |
+
+Macro (mean of per-cut coverage): 25%. Observable moments: 32%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 10%; window 3 s, anchor 4 s: 19%; window 6 s, anchor 0 s: 21%; window 6 s, anchor 4 s: 26%; window 10 s, anchor 0 s: 28%; window 10 s, anchor 4 s: 36%.
+
+### gemini-3.6-flash, prompt a8a8b0e6 (frozen-dev-r2, frozen-r2), run 2, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 6 | 0 | 6 | 12 | 10 | 2 | 20% | 10% / 20% | 0 | 30% | 8% | n/a | 82.2 |
+| Bound to the Demon King/Episode 04/v2 | 2 | 0 | 10 | 12 | 9 | 0 | 0% | 11% / 0% | -11 | 33% | 0% | n/a | 67.3 |
+| The Haunted Crew/Episode 01/v2 | 5 | 0 | 5 | 38 | 17 | 1 | 6% | 10% / 18% | -12 | 24% | 3% | n/a | 50.5 |
+| The Villain's Therapist/Episode 01/v1 | 5 | 0 | 5 | 24 | 22 | 0 | 0% | 5% / 5% | -5 | 14% | 0% | n/a | 53.8 |
+| Pooled (micro) | 18 | 0 | 26 | 86 | 58 | 3 | 5% (95% 2 to 14) | 8% / 10% | -5 | 22% | 2% | n/a | |
+
+Macro (mean of per-cut coverage): 6%. Observable moments: 8%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 2%; window 3 s, anchor 4 s: 3%; window 6 s, anchor 0 s: 2%; window 6 s, anchor 4 s: 5%; window 10 s, anchor 0 s: 7%; window 10 s, anchor 4 s: 9%.
+
+### gemini-3.6-flash, prompt a8a8b0e6 (frozen-dev-r2, frozen-r2), run 2, test
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 06/v2 | 4 | 0 | 4 | 16 | 12 | 0 | 0% | 5% / 8% | -8 | 17% | 0% | n/a | 62.4 |
+| Everyone But Her/Episode 12/v2 | 5 | 1 | 9 | 7 | 5 | 2 | 40% | 20% / 20% | 20 | 60% | 43% | n/a | 72.8 |
+| Everyone But Her/Episode 12/v3 | 4 | 1 | 7 | 14 | 12 | 0 | 0% | 7% / 8% | -8 | 33% | 0% | n/a | 31.1 |
+| The Villain's Therapist/Episode 01/v2 | 4 | 1 | 6 | 10 | 9 | 0 | 0% | 6% / 11% | -11 | 22% | 0% | n/a | 33.9 |
+| Pooled (micro) | 17 | 3 | 26 | 47 | 38 | 2 | 5% (95% 1 to 17) | 8% / 11% | -5 | 29% | 6% | n/a | |
+
+Macro (mean of per-cut coverage): 10%. Observable moments: 6%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 3%; window 3 s, anchor 4 s: 3%; window 6 s, anchor 0 s: 5%; window 6 s, anchor 4 s: 5%; window 10 s, anchor 0 s: 11%; window 10 s, anchor 4 s: 11%.
+
+### gemini-3.6-flash, prompt 45251708 (series-memory), run 1, test
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 06/v2 | 4 | 0 | 4 | 16 | 12 | 1 | 8% | 8% / 8% | 0 | 17% | 6% | n/a | 106.2 |
+| Pooled (micro) | 4 | 0 | 4 | 16 | 12 | 1 | 8% (95% 1 to 35) | 8% / 8% | 0 | 17% | 6% | n/a | |
+
+Macro (mean of per-cut coverage): 8%. Observable moments: 10%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 8%; window 3 s, anchor 4 s: 8%; window 6 s, anchor 0 s: 8%; window 6 s, anchor 4 s: 8%; window 10 s, anchor 0 s: 17%; window 10 s, anchor 4 s: 17%.
+
+### gemini-3.8-flash, prompt a8a8b0e6 (baseline-purged), run 1, dev
+
+| Cut | AI notes | Echoed | Hit sources | Strategist notes | Moments | Matched | Coverage | Floor (shift / grid) | Lift | Time-only | Note-level | Validity | Generate s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Bound to the Demon King/Episode 04/v1 | 7 | 0 | 7 | 12 | 10 | 3 | 30% | 19% / 10% | 11 | 30% | 25% | n/a | 172.8 |
+| Bound to the Demon King/Episode 04/v2 | 3 | 0 | 7 | 12 | 9 | 1 | 11% | 7% / 0% | 4 | 44% | 8% | n/a | 93 |
+| The Haunted Crew/Episode 01/v2 | 7 | 0 | 7 | 38 | 17 | 5 | 29% | 21% / 29% | 0 | 35% | 13% | n/a | 122.7 |
+| Pooled (micro) | 17 | 0 | 21 | 62 | 36 | 9 | 25% (95% 14 to 41) | 17% / 17% | 8 | 36% | 15% | n/a | |
+
+Macro (mean of per-cut coverage): 24%. Observable moments: 28%.
+
+Sensitivity (automatic coverage): window 3 s, anchor 0 s: 14%; window 3 s, anchor 4 s: 19%; window 6 s, anchor 0 s: 17%; window 6 s, anchor 4 s: 25%; window 10 s, anchor 0 s: 17%; window 10 s, anchor 4 s: 25%.
 
 <!-- eval:score tables end -->

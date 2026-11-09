@@ -59,7 +59,7 @@ Next.js 16 (App Router, TypeScript, Tailwind)
    data/               SQLite database and uploaded files (not committed)
 ```
 
-The AI pass sends the whole cut (by default the API samples it at 1 frame per second, with audio), the cast images inline, the series bible, a sample of how this team writes notes (strategist notes from other episodes), the notes already on the cut (so they are not repeated) and, for a later cut, the carried-over notes to re-check. The prompt asks the model to watch as a first-time viewer on a phone and to write a note wherever a strategist would stop the video, about one every 8 to 12 seconds on a rough cut; the shot-list arm makes it list the shots of every 10 s block before writing notes. The response schema forces `MM:SS` anchors, a category, a severity, evidence and an explicit hook and cliffhanger verdict. Every lever was measured; see [docs/accuracy.md](docs/accuracy.md) and [docs/decisions.md](docs/decisions.md).
+The AI pass sends the whole cut (by default the API samples it at 1 frame per second, with audio), the cast images inline, the series bible, the notes already on the cut (so they are not repeated) and, for a later cut, the carried-over notes to re-check. The response schema forces `MM:SS` anchors, a category, a severity, evidence and an explicit hook and cliffhanger verdict. The default instruction text is the round-1 prompt with its style examples replaced by invented ones (arm P), because none of the rebuilt variants measured better on the tuning cuts. The variants stay selectable: `GEMINI_ARM=A` (a first-time phone viewer with delivery, sound, rendering and transition lenses and a density target), `AB` (A plus a shot list per 10 s block before the notes) or `AC` (a problem slot per listed shot), and `GEMINI_EXEMPLARS` (up to 15) adds strategist notes from other episodes as a style sample. Every variant was measured; see [docs/accuracy.md](docs/accuracy.md) and [docs/decisions.md](docs/decisions.md).
 
 ## Scripts
 
@@ -91,6 +91,17 @@ Older cuts stay read only with their own notes; the latest cut carries the open 
 
 A database written by this version should not be opened with the code at the `submission` tag (round 1): that build indexes category styles directly and does not know the `sound` category added since.
 
+## Accuracy
+
+On the four held-out cuts the frozen configuration (3.6 Flash, one call per cut) flagged 1 of 38 strategist moments at the same point for the same reason, checked by watching (3%, 95% interval 0 to 13). By the automatic rule it matched 2 of 38 (5%) against 11% for evenly spaced dummy notes. The validity of its own notes was not judged. That is far from the 70% target; [WRITEUP.md](WRITEUP.md) explains why and what was tried, and [docs/accuracy.md](docs/accuracy.md) holds the definition, the pre-registration and every table.
+
+The saved runs, the strategist label file and the judgment file describe the confidential example package, so they are not in the repository; they travel with the submission bundle. With them in place (`data/eval/`, `eval/labels/`, `eval/judgments/`), this prints the headline with no API call:
+
+```bash
+npm run eval:score -- --config a8a8b0e6 --model gemini-3.6-flash --run-index 1 --set test
+npm run eval:score -- --report   # regenerates every table in docs/accuracy.md
+```
+
 ## Design decisions
 
 The reasoning behind the main choices, each measured where a number exists; the full list with options and measurements is in [docs/decisions.md](docs/decisions.md), the accuracy protocol and its results in [docs/accuracy.md](docs/accuracy.md).
@@ -101,10 +112,10 @@ The reasoning behind the main choices, each measured where a number exists; the 
 - Accuracy is defined before it is measured: the definition, the tuning and held-out split, the prior-contact list and the hash of the label file were committed and tagged before any scored call.
 - A number is never printed alone: automatic coverage always sits beside its chance floor, the human-confirmed figure beside the validity of the tool's own notes.
 - Round 1's time-only metric scored at chance under this rule, which is why the definition changed; the write-up says so.
-- The prompt was rebuilt as a first-time phone viewer with delivery, sound, rendering and transition lenses, and measured as separate arms (text alone, text plus a shot list per block) attributed by what each changed.
+- The prompt was rebuilt as a first-time phone viewer with delivery, sound, rendering and transition lenses and measured as separate arms (text alone, text plus a shot list per block, a problem slot per shot); none beat the round-1 text over its chance floor, so the app ships the round-1 text with invented examples and keeps the arms selectable.
 - A note the model restates at the new timecode of its own verdict is dropped as a duplicate, counted and shown.
 - Every call, failed ones included, goes into a ledger that stops a sweep before it passes the free tier's daily limit.
-- Windowed passes, generate-then-verify and series memory were costed and left for a paid key, with the measurements that say why.
+- Windowed passes were built and measured on Flash-Lite (three times the notes, no lift over the floor); generate-then-verify was costed and left for a paid key.
 
 ## Free tier notes
 
