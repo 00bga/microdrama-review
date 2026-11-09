@@ -487,7 +487,10 @@ export function scoreRun(
   let valid: number | null = null;
   let judged: number | null = null;
   const verdicts = { total: run.normalized.assessments.length, notFixed: 0, withEvidence: 0, right: 0, wrong: 0, cannotTell: 0 };
-  if (judgments) {
+  // A judgment file covers only the cuts that appear in it: the same prompt version on another set
+  // (the dev runs of the frozen configuration) shares the group key but was never judged.
+  const judgedCuts = new Set([...(judgments?.items ?? []).map((i) => i.cut), ...(judgments?.verdicts ?? []).map((v) => v.cut)]);
+  if (judgments && judgedCuts.has(cut.label)) {
     const items = judgments.items.filter((i) => i.cut === cut.label);
     const confirmedMoments = new Set<number>();
     const carriedMoments = new Set<number>();
@@ -1089,8 +1092,9 @@ function exportJudgments(workPath: string, judgmentsDir: string): void {
     if (section.startsWith("Hit sources")) {
       const [n, cut, kind, time, category, , , moment, valid, pair] = cells;
       const v = valid.toLowerCase();
+      // an empty cell means "not judged" (validity is then reported as not judged, never guessed)
       const validity = v === "yes" || v === "valid" ? true : v === "no" || v === "invalid" ? false : null;
-      if (validity === null) problems.push(`hit source #${n}: valid must be yes or no`);
+      if (validity === null && v !== "") problems.push(`hit source #${n}: valid must be yes, no or empty`);
       let pairObj: JudgmentFile["items"][number]["pair"] = null;
       if (moment) {
         const momentTime = Number(moment.split(":")[0]);
@@ -1119,9 +1123,9 @@ function exportJudgments(workPath: string, judgmentsDir: string): void {
       }
     } else if (section.startsWith("Verdicts")) {
       const [n, cut, ref, , assessment, , , judged] = cells;
-      const j = judged.toLowerCase().replace(/\s+/g, "-") as "right" | "wrong" | "cannot-tell";
-      if (!["right", "wrong", "cannot-tell"].includes(j)) problems.push(`verdict #${n}: judged must be right, wrong or cannot-tell`);
-      file.verdicts.push({ cut, ref, assessment, judged: j });
+      const j = judged.toLowerCase().replace(/\s+/g, "-") as "right" | "wrong" | "cannot-tell" | "";
+      if (j !== "" && !["right", "wrong", "cannot-tell"].includes(j)) problems.push(`verdict #${n}: judged must be right, wrong, cannot-tell or empty`);
+      file.verdicts.push({ cut, ref, assessment, judged: j === "" ? null : j });
     }
   }
   if (problems.length > 0) {
@@ -1216,11 +1220,16 @@ function main(): void {
       continue;
     }
     const judgments = loadJudgments(judgmentsDir, g.key);
-    const scores = runsInGroup
-      .sort((a, b) => a.cut.localeCompare(b.cut))
-      .map((r) => scoreRun(r, infos.get(r.cut)!, labels, judgments, windowS, anchorS));
-    scored.push({ g, scores });
-    printGroup(g, scores, windowS, anchorS, labelsPresent);
+    // one table per set: the tuning cuts and the held-out cuts of one configuration are never pooled
+    for (const set of ["dev", "test"] as const) {
+      const runsInSet = runsInGroup.filter((r) => setOf(r.cut) === set);
+      if (runsInSet.length === 0) continue;
+      const scores = runsInSet
+        .sort((a, b) => a.cut.localeCompare(b.cut))
+        .map((r) => scoreRun(r, infos.get(r.cut)!, labels, judgments, windowS, anchorS));
+      scored.push({ g, scores });
+      printGroup(g, scores, windowS, anchorS, labelsPresent);
+    }
   }
   if (values.judgments) return;
   if (scored.length === 0) console.log("No scorable runs matched.");
